@@ -16,9 +16,7 @@
   "author": "Andrew Otto <otto@wikimedia.org>",
   "license": "Apache-2.0",
   "dependencies": {
-    "bunyan": "^1.8.12",
     "fse": "^4.0.1",
-    "glob": "^7.1.4",
     "js-yaml": "^3.13.1",
     "lodash": "^4.17.11",
     "nodegit": "^0.24.3",
