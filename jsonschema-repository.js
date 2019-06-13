@@ -1,18 +1,13 @@
 #!/usr/bin/env node
 'use strict';
 
-const util = require('util');
 const _        = require('lodash');
 const yaml     = require('js-yaml');
 const path = require('path');
-const glob = require('glob');
 const semver = require('semver');
 const NodeGit = require('nodegit');
-const fs = require("fs");
-const writeFile = util.promisify(fs.writeFile);
-const unlink = util.promisify(fs.unlink);
-const symlink = util.promisify(fs.symlink);
-const access = util.promisify(fs.access);
+const fse = require('fs-extra');
+const pino = require('pino');
 
 /**
  * Converts a utf-8 byte buffer or a YAML/JSON string into
@@ -44,7 +39,7 @@ function objectFactory(data) {
 
 
 function writeYamlFile(object, outputPath) {
-    return writeFile(outputPath, yaml.dump(object));
+    return fse.writeFile(outputPath, yaml.dump(object));
 }
 
 const defaultOptions = {
@@ -53,10 +48,11 @@ const defaultOptions = {
     shouldSymlink: true,
     // TODO add option to generate and expect JSON rather than yaml
     contentType: 'yaml',
-    schemaVersionRegex: /.*\/(\d+\.\d+\.\d+).yaml$/
+    schemaVersionRegex: /.*\/(\d+\.\d+\.\d+).yaml$/,
+    logLevel: 'warn'
 };
 
-class EventSchema {
+class Schema {
     constructor(
         schemaDirectory,
         repository,
@@ -64,18 +60,17 @@ class EventSchema {
     ) {
         _.defaults(this, options, defaultOptions);
 
-        this.schemaDirectory = schemaDirectory;
         this.repository = repository;
+        this.schemaDirectory = schemaDirectory;
 
-        // this.schemaVersionRegex = new RegExp(`(\d+\.\d+\.\d+)\.${this.contentType}$`);
+        this.log = pino({level: this.logLevel});
     }
 
-    static async init(schemaDirectory) {
+    static async init(schemaDirectory, options = {}) {
         const absoluteDir = path.resolve(schemaDirectory);
-        const repo = await NodeGit.Repository.open(
-            await NodeGit.Repository.discover(absoluteDir, 0, '/')
-        );
-        return new EventSchema(schemaDirectory, repo);
+        const repoPath = await NodeGit.Repository.discover(absoluteDir, 0, '/');
+        const repo = await NodeGit.Repository.open(repoPath);
+        return new Schema(schemaDirectory, repo, options);
     }
 
     // TODO: Can we create a function that inspects the diff of the schemas
@@ -114,14 +109,22 @@ class EventSchema {
         }
     }
 
-    async schemaDirectoryEntries() {
+    async getTreeEntry(treePath) {
+        if (path.isAbsolute(treePath)) {
+            treePath = path.relative(await this.repository.workdir(), treePath);
+        }
         const commit = await this.getCommit();
         const tree = await NodeGit.Tree.lookup(this.repository, commit.treeId());
+        return tree.getEntry(treePath);
+    }
 
-        const schemaDirectoryTreeEntry = await tree.getEntry(this.schemaDirectory);
+    async schemaDirectoryEntries() {
+        const schemaDirectoryTreeEntry = await this.getTreeEntry(this.schemaDirectory);
+
         if (!schemaDirectoryTreeEntry.isTree()) {
             throw new Error(`${this.schemaDirectory} is not a git tree!`);
         }
+
         const schemaDirectoryTree = await schemaDirectoryTreeEntry.getTree();
         return schemaDirectoryTree.entries();
     }
@@ -186,17 +189,21 @@ class EventSchema {
         return `${this.schemaDirectory}/${nextVersion}.${this.contentType}`;
     }
 
-    async createExtensionlessSymlink(schemaPath) {
-        const filename = path.basename(schemaPath);
-        const symlinkPath = path.join(
-            path.dirname(schemaPath),
-            path.basename(schemaPath, `.${this.contentType}`)
+    extensionlessPath(schemaVersionPath) {
+        return path.join(
+            path.dirname(schemaVersionPath),
+            path.basename(schemaVersionPath, `.${this.contentType}`)
         );
+    }
+
+    async createExtensionlessSymlink(schemaVersionPath) {
+        const filename = path.basename(schemaVersionPath);
+        const symlinkPath = this.extensionlessPath(schemaVersionPath);
 
         try {
-            await access(symlinkPath, fs.constants.F_OK | fs.constants.W_OK);
-            console.error(`Removing and recreating symlink ${symlinkPath}`);
-            await unlink(symlinkPath);
+            await fse.access(symlinkPath, fse.constants.F_OK | fse.constants.W_OK);
+            console.debug(`Removing and recreating symlink ${symlinkPath}`);
+            await fse.unlink(symlinkPath);
         } catch (err) {
             if (err.code == 'ENOENT') {
                 // no op, the file doesn't exist so we can just create a new symlink
@@ -205,52 +212,37 @@ class EventSchema {
             }
         }
 
-        await symlink(filename, symlinkPath);
+        await fse.symlink(filename, symlinkPath);
         return symlinkPath;
     }
 
     async generateNextVersion(candidateSchema) {
         const nextVersionPath = await this.nextVersionPath();
+    
         // TODO: dereference schema $refs.
-        await writeYamlFile(candidateSchema, nextVersionPath);
 
-        let gitAddCommand = `git add ${nextVersionPath}`;
+        await writeYamlFile(candidateSchema, nextVersionPath);
+        this.log.debug(`Wrote next schema version file at ${nextVersionPath}`);
+
         if (this.shouldSymlink) {
             const symlinkPath = await this.createExtensionlessSymlink(nextVersionPath);
-            console.error(`Created extensionless symlink ${symlinkPath} -> ${nextVersionPath}`);
-            gitAddCommand += ` ${symlinkPath}`;
+            this.log.debug(`Created extensionless symlink ${symlinkPath} -> ${nextVersionPath}`);
         }
-        console.error(`Generated new schema version for ${this}. Before committing please run: ${gitAddCommand}`);
         return nextVersionPath;
     
         // TODO: I want to git add this new file right here, but
         // I can't because the repo index is locked while this filter clean process runs.
+    }
 
-
-        // WIP...
-        // const lockedIndex = await NodeGit.Index.open("index.lock");
-        // lockedIndex.write();
-
-        // const index = await this.repository.refreshIndex();
-
-        // let relock = false;
-        // if (fs.existsSync('.git/index.lock')) {
-        //     console.error('index.lock exists, removing');
-        //     await unlink('.git/index.lock');
-        //     relock = true;
-        // }
-
-        // const index = await this.repository.refreshIndex();
-        // console.error(`adding ${nextVersionPath} to ${index.path()}`);
-
-        // await index.addByPath(nextVersionPath);
-        // await index.write();
-
-        // if (relock) {
-        //     console.error("relocking");
-        //     fs.closeSync(fs.openSync('.git/index.lock', 'w'));
-        // }
-        
+    async gitAddNextVersionCommand() {
+        const nextVersionPath = await this.nextVersionPath();
+        const symlinkPath = await this.extensionlessPath(nextVersionPath);
+    
+        let gitAddCommand = `git add ${nextVersionPath}`;
+        if (this.shouldSymlink) {
+            gitAddCommand += ` ${symlinkPath}`;
+        }
+        return gitAddCommand;
     }
 
     toString() {
@@ -261,25 +253,23 @@ class EventSchema {
 
 if (require.main === module) {
     const schemaPath = process.argv[2];
-    const data = fs.readFileSync(0, 'utf-8');
+    const data = fse.readFileSync(0, 'utf-8');
     const candidateSchema = objectFactory(data);
     
-    EventSchema.init(path.dirname(schemaPath)).then(async (es) => {
+    Schema.init(path.dirname(schemaPath)).then(async (es) => {
         const needsNewVersion = await es.needsNewVersion(candidateSchema);
         if (needsNewVersion) {
-            console.error(`${es} needs new version: ${await es.nextVersion()}`);
             try {
-                const newVersionPath = await es.generateNextVersion(candidateSchema);
+                const gitAddCommand = await es.generateNextVersion(candidateSchema);
+                console.error(`Generated new schema version for ${es}. Before committing please run: ${await es.gitAddNextVersionCommand()}`);
             } catch(err) {
-                console.error("FAILED ", err);
+                console.error(`Failed generating new schema for ${es}: `, err);
             }
-        } else {
-            console.error(`${es} does not need new version.  Latest is ${await es.latestVersion()}`);
         }
     });
 }
 
 
 module.exports = {
-    EventSchema,
+    Schema,
 }
