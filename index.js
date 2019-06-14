@@ -18,7 +18,9 @@ const defaultOptions = {
     log: pino({ level: 'warn', prettyPrint: true }),
 };
 
-
+/**
+ * Map of contentType to serializer.
+ */
 const serializers = {
     'yaml': yaml.dump,
     'json': JSON.stringify
@@ -45,37 +47,9 @@ options:
 const parsedUsage = neodoc.parse(usage, { smartOptions: true });
 
 
-/**
- * Converts a utf-8 byte buffer or a YAML/JSON string into
- * an object and returns it.
- * @param {string|Buffer|Object} data
- * @return {Object}
- */
-function objectFactory(data) {
-    // If we were given a byte Buffer, parse it as utf-8 string.
-    if (data instanceof Buffer) {
-        data = data.toString('utf-8');
-    } else if (_.isObject(data)) {
-        // if we were given a a JS object, return it now.
-        return data;
-    }
-
-    // If we now have a string, then assume it is a YAML/JSON string.
-    if (_.isString(data)) {
-        data = yaml.safeLoad(data);
-    } else {
-        throw new Error(
-            'Could not convert data into an object.  ' +
-            'Data must be a utf-8 byte buffer or a YAML/JSON string'
-        );
-    }
-
-    return data;
+async function readSchemaFile(schemaPath) {
+    return yaml.safeLoad(await fse.readFile(schemaPath, 'utf-8'));
 }
-
-
-
-
 
 function writeSchemaFile(object, outputPath, options = {}) {
     _.defaults(options, defaultOptions);
@@ -97,10 +71,7 @@ function schemaVersion(schema, schemaVersionField) {
     return semver.coerce(_.get(schema, schemaVersionField)).version;
 }
 
-async function readSchemaFile(schemaPath) {
-    const content = await fse.readFile(schemaPath);
-    return yaml.safeLoad(content.toString('utf-8'));
-}
+
 
 function extensionlessPath(filePath) {
     const parsedPath = path.parse(filePath);
@@ -176,6 +147,7 @@ async function materializeSchemaVersion(schemaPath, schema = undefined, options 
         }
     }
 
+    // TODO: Can we run git add during a git hook / gitattributes filter clean?
     if (options.shouldGitAdd && !options.dryRun) {
         /* eslint no-console: "off" */
         console.error(`New schema files have been generated. Please run:\n${gitAddCommand(newFiles)}`);
@@ -209,7 +181,7 @@ async function main(argv) {
     let schema;
     if (args['-']) {
         options.log.info('Reading schema from stdin');
-        schema = objectFactory(fse.readFileSync(0, 'utf-8'));
+        schema = await readSchemaFile(0);
     }
 
     try {
