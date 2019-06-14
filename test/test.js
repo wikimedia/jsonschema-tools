@@ -1,16 +1,10 @@
 'use strict';
 
-const testFixture = require('test-fixture')
+const testFixture = require('test-fixture');
 const fse = require('fs-extra');
-const yaml     = require('js-yaml');
 const assert = require('assert');
-const path = require('path');
-const materializeSchemaVersion = require('../index.js');
 
-async function readSchemaFile(schemaPath) {
-    const content = await fse.readFile(schemaPath);
-    return yaml.safeLoad(content.toString('utf-8'));
-}
+const materializeSchemaVersion = require('../index.js');
 
 
 describe('materializeSchemaVersion', function() {
@@ -81,7 +75,9 @@ describe('materializeSchemaVersion', function() {
         it(test.name, async function() {
             const schemaPath = fixture.resolve('schemas/basic/current.yaml');
 
-            const materializedPath = await materializeSchemaVersion(schemaPath, undefined, test.options);
+            const materializedPath = await materializeSchemaVersion(
+                schemaPath, undefined, test.options
+            );
 
             assert.equal(
                 materializedPath,

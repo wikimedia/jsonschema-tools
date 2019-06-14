@@ -1,10 +1,11 @@
 {
   "name": "jsonschema-repository",
-  "version": "0.0.1",
-  "description": "Manages a git repository of versioned JSONSchemas",
-  "main": "generate-schema.js",
+  "version": "0.0.2",
+  "description": "Manages a repository of versioned JSONSchemas",
+  "main": "index.js",
   "scripts": {
-    "test": "mocha"
+    "test": "nyc mocha && npm run lint",
+    "lint": "eslint --cache --max-warnings 0 index.js test/test.js"
   },
   "keywords": [
     "jsonschema",
@@ -20,12 +21,17 @@
     "js-yaml": "^3.13.1",
     "lodash": "^4.17.11",
     "neodoc": "^2.0.2",
-    "pino": "^5.12.6",s
+    "pino": "^5.12.6",
     "semver": "^6.1.1"
   },
   "devDependencies": {
-    "mocha": "^6.1.4",
     "pino-pretty": "^3.1.0",
-    "test-fixture": "^2.4.0"
+    "test-fixture": "^2.4.0",
+    "mocha": "^6.1.4",
+    "nyc": "^13.3.0",
+    "eslint": "^5.9.0",
+    "eslint-config-wikimedia": "^0.10.1",
+    "eslint-plugin-jsdoc": "^4.1.0",
+    "eslint-plugin-json": "^1.2.0"
   }
 }

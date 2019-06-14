@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 'use strict';
 
-const _        = require('lodash');
-const yaml     = require('js-yaml');
-const path = require('path');
-const semver = require('semver');
-const fse = require('fs-extra');
-const pino = require('pino');
-const neodoc = require('neodoc');
+const _         = require('lodash');
+const yaml      = require('js-yaml');
+const path      = require('path');
+const semver    = require('semver');
+const fse       = require('fs-extra');
+const pino      = require('pino');
+const neodoc    = require('neodoc');
 
 const defaultOptions = {
     shouldSymlink: true,
@@ -15,7 +15,7 @@ const defaultOptions = {
     schemaVersionField: '$id',
     shouldGitAdd: true,
     dryRun: false,
-    log: pino({level: 'warn', prettyPrint: true}),
+    log: pino({ level: 'warn', prettyPrint: true }),
 };
 
 
@@ -42,7 +42,7 @@ options:
     -v, --verbose
     -n, --dry-run
 `;
-const parsedUsage = neodoc.parse(usage, {smartOptions: true});
+const parsedUsage = neodoc.parse(usage, { smartOptions: true });
 
 
 /**
@@ -77,7 +77,7 @@ function objectFactory(data) {
 
 
 
-function writeSchemaFile(object, outputPath, options={}) {
+function writeSchemaFile(object, outputPath, options = {}) {
     _.defaults(options, defaultOptions);
     const contentType = options.contentType;
 
@@ -115,10 +115,9 @@ async function createSymlink(filePath, symlinkPath) {
         await fse.access(symlinkPath, fse.constants.F_OK | fse.constants.W_OK);
         await fse.unlink(symlinkPath);
     } catch (err) {
-        if (err.code == 'ENOENT') {
+        if (err.code === 'ENOENT') {
             // no op, the file doesn't exist so we can just create a new symlink
         } else {
-            console.log('not writeable');
             throw new Error(`File ${symlinkPath} is not writeable. Cannot create extensionless symlink.`, err);
         }
     }
@@ -178,6 +177,7 @@ async function materializeSchemaVersion(schemaPath, schema = undefined, options 
     }
 
     if (options.shouldGitAdd && !options.dryRun) {
+        /* eslint no-console: "off" */
         console.error(`New schema files have been generated. Please run:\n${gitAddCommand(newFiles)}`);
     }
 
@@ -206,7 +206,7 @@ async function main(argv) {
 
     const schemaPath = args['<schema-path>'];
 
-    let schema = undefined;
+    let schema;
     if (args['-']) {
         options.log.info('Reading schema from stdin');
         schema = objectFactory(fse.readFileSync(0, 'utf-8'));
@@ -224,8 +224,6 @@ async function main(argv) {
 if (require.main === module) {
     main(process.argv);
 }
-
-
 
 
 module.exports = materializeSchemaVersion;
