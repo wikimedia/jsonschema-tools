@@ -28,7 +28,6 @@ const serializers = {
     'json': JSON.stringify
 };
 
-
 const usage = `
 usage: jsonschema-materialize [options] [<schema-file>]
 
@@ -51,7 +50,6 @@ options:
 `;
 const parsedUsage = neodoc.parse(usage, { smartOptions: true });
 
-
 /**
  * Reads in a yaml or json file from file
  * @param {string|int} file string path or int file descriptor to read
@@ -60,7 +58,6 @@ const parsedUsage = neodoc.parse(usage, { smartOptions: true });
 async function readObject(file) {
     return yaml.safeLoad(await fse.readFile(file, 'utf-8'));
 }
-
 
 /**
  * Serializes object and writes to file.
@@ -194,7 +191,6 @@ async function materializeSchemaVersion(schemaDirectory, schema, options = {}) {
     return materializedSchemaPath;
 }
 
-
 async function main(argv) {
     const args = neodoc.run(parsedUsage, argv);
     // console.log(args);
@@ -239,6 +235,5 @@ async function main(argv) {
 if (require.main === module) {
     main(process.argv);
 }
-
 
 module.exports = materializeSchemaVersion;
