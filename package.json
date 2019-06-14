@@ -7,6 +7,9 @@
     "test": "nyc mocha && npm run lint",
     "lint": "eslint --cache --max-warnings 0 index.js test/test.js"
   },
+  "bin": {
+    "manifest-jsonschema": "./index.js"
+  },
   "keywords": [
     "jsonschema",
     "schema",

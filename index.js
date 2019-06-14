@@ -8,6 +8,8 @@ const semver    = require('semver');
 const fse       = require('fs-extra');
 const pino      = require('pino');
 const neodoc    = require('neodoc');
+const util      = require('util');
+const exec      = util.promisify(require('child_process').exec);
 
 const defaultOptions = {
     shouldSymlink: true,
@@ -178,10 +180,15 @@ async function materializeSchemaVersion(schemaDirectory, schema, options = {}) {
         }
     }
 
-    // TODO: Can we run git add during a git hook / gitattributes filter clean?
     if (options.shouldGitAdd && !options.dryRun) {
-        /* eslint no-console: "off" */
-        console.error(`New schema files have been generated. Please run:\n${gitAddCommand(newFiles)}`);
+        const command = gitAddCommand(newFiles);
+        log.info(`New schema files have been generated. Running:\n${command}`);
+        try {
+            await exec(command);
+        } catch (err) {
+            log.error(err, `Failed git add of new schema files: ${command}`);
+            throw err;
+        }
     }
 
     return materializedSchemaPath;
@@ -190,10 +197,11 @@ async function materializeSchemaVersion(schemaDirectory, schema, options = {}) {
 
 async function main(argv) {
     const args = neodoc.run(parsedUsage, argv);
-    console.log(args);
+    // console.log(args);
 
-    // Make sure at least one of <schema-file> or --output-dir is provided.
+    // Ensure at least one of <schema-file> or --output-dir is provided.
     if (_.isUndefined(args['<schema-file>']) && _.isUndefined(args['--output-dir'])) {
+        /* eslint no-console: "off" */
         console.error('Must specify at least <schema-file> or --output-dir\n' + parsedUsage.helpText);
         process.exit(1);
     }
