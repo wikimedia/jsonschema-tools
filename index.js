@@ -28,15 +28,18 @@ const serializers = {
 
 
 const usage = `
-usage: jsonschema-materialize [options] <schema-path> [-]
+usage: jsonschema-materialize [options] [<schema-file>]
 
-Given a path to a JSONSchema file, this will extract the schema version
-and output a file named for the version with the derefenced schema.
-If the schema is given on stdin, it will be used instead of reading
-the schema from the <schema-path> file.
+Extracts the schema version from a field in the schema
+and outputs a file named for the version with the derefenced schema.
+If no <schema-file> is provided, schema will be read from stdin.
+If the schema is read from stdin one of <schema-file> or --output-dir is required.
+If --output-dir is not provided, the output directory
+is assumed to be the parent directory of <schema-file>.
 
 options:
     -h, --help
+    -o, --output-dir <output-directory>     Directory in which to write versioned schema file.
     -c, --content-type <content-type>       [Default: ${defaultOptions.contentType}]
     -V, --version-field <version-field>     [Default: ${defaultOptions.schemaVersionField}]
     -G, --no-git-add
@@ -47,41 +50,66 @@ options:
 const parsedUsage = neodoc.parse(usage, { smartOptions: true });
 
 
-async function readSchemaFile(schemaPath) {
-    return yaml.safeLoad(await fse.readFile(schemaPath, 'utf-8'));
+/**
+ * Reads in a yaml or json file from file
+ * @param {string|int} file string path or int file descriptor to read
+ * @return {Promise<Object>} read and parsed object
+ */
+async function readObject(file) {
+    return yaml.safeLoad(await fse.readFile(file, 'utf-8'));
 }
 
-function writeSchemaFile(object, outputPath, options = {}) {
-    _.defaults(options, defaultOptions);
-    const contentType = options.contentType;
 
+/**
+ * Serializes object and writes to file.
+ * @param {Object} object object to serialize and write to file
+ * @param {string|int} file string path or int file descriptor to write
+ * @param {string} contentType either 'yaml' or 'json'
+ * @return {Promise} resolves when file is written
+ */
+function writeObject(object, file, contentType) {
     const serialize = serializers[contentType];
     if (_.isUndefined(serialize)) {
         throw new Error(
-            `Cannot write schema file to ${outputPath}, ` +
-            `no serializer for ${contentType} is defined.`
+            `Cannot write schema file to ${file}, ` +
+            `no serializer for ${contentType} is defined. ` +
+            `contentType must be one of ${_.keys(serializers).join(',')}`
         );
     }
-
-    return fse.writeFile(outputPath, serialize(object));
+    return fse.writeFile(file, serialize(object));
 }
 
-
+/**
+ * Returns a semantic version from a schema given a field
+ * in that schema that contains the version.
+ * This uses semver.coerce to get the version.
+ * @param {Object} schema
+ * @param {string} schemaVersionField
+ *  field in schema that contains version,
+ *  suitable for passing to lodash#get
+ * @return {string} semantic version
+ */
 function schemaVersion(schema, schemaVersionField) {
     return semver.coerce(_.get(schema, schemaVersionField)).version;
 }
 
-
-
+/**
+ * Returns the filePath without a file extension.
+ * @param {string} filePath
+ * @return {string}
+ */
 function extensionlessPath(filePath) {
     const parsedPath = path.parse(filePath);
     return path.join(parsedPath.dir, parsedPath.name);
 }
 
-async function createSymlink(filePath, symlinkPath) {
-    const parsedPath = path.parse(filePath);
-    const fileName = parsedPath.base;
-
+/**
+ * Creates a symlink at symlinkPath pointing at targetPath.
+ * @param {string} targetPath
+ * @param {string} symlinkPath
+ * @return {Promise} resolves when symlink is created
+ */
+async function createSymlink(targetPath, symlinkPath) {
     try {
         await fse.access(symlinkPath, fse.constants.F_OK | fse.constants.W_OK);
         await fse.unlink(symlinkPath);
@@ -92,28 +120,30 @@ async function createSymlink(filePath, symlinkPath) {
             throw new Error(`File ${symlinkPath} is not writeable. Cannot create extensionless symlink.`, err);
         }
     }
-
-    await fse.symlink(fileName, symlinkPath);
-    return symlinkPath;
+    return fse.symlink(targetPath, symlinkPath);
 }
 
+/**
+ * Given a list of paths, returns a git add command
+ * @param {Array<string>} paths
+ * @return {string}
+ */
 function gitAddCommand(paths) {
     return `git add ${paths.join(' ')}`;
 }
 
-async function materializeSchemaVersion(schemaPath, schema = undefined, options = {}) {
+/**
+ * Materializes a versioned schema file in the directory.
+ *
+ * @param {string} schemaDirectory directory in which to materialize schema
+ * @param {Object} schema Schema to materialize
+ * @param {Object} options
+ * @return {Promise<string>} path of newly materialized schema
+ */
+async function materializeSchemaVersion(schemaDirectory, schema, options = {}) {
     _.defaults(options, defaultOptions);
     const log = options.log;
-    const schemaDirectory = path.dirname(schemaPath);
-
-    // If schema not provided, then read it from schemaPath.
-    if (!schema) {
-        try {
-            schema = await readSchemaFile(schemaPath);
-        } catch (err) {
-            throw new Error(`Failed reading schema from ${schemaPath}`, err);
-        }
-    }
+    // const schemaDirectory = path.dirname(schemaPath);
 
     const version = schemaVersion(schema, options.schemaVersionField);
 
@@ -124,25 +154,26 @@ async function materializeSchemaVersion(schemaPath, schema = undefined, options 
 
     let newFiles = [];
     if (!options.dryRun) {
-        await writeSchemaFile(schema, materializedSchemaPath, options);
-        log.info(`Materialized ${schemaPath} at ${materializedSchemaPath}.`);
+        await writeObject(schema, materializedSchemaPath, options.contentType);
+        log.info(`Materialized schema at ${materializedSchemaPath}.`);
         newFiles.push(materializedSchemaPath);
     }
     else {
-        log.info(`--dry-run: Would have materialized ${schemaPath} at ${materializedSchemaPath}.`);
+        log.info(`--dry-run: Would have materialized schema at ${materializedSchemaPath}.`);
     }
 
     if (options.shouldSymlink) {
         const symlinkPath = extensionlessPath(materializedSchemaPath);
+        const target = path.basename(materializedSchemaPath);
         if (!options.dryRun) {
-            await createSymlink(materializedSchemaPath, symlinkPath);
+            await createSymlink(target, symlinkPath);
             log.info(
-                `Created extensionless symlink ${symlinkPath} -> ${materializedSchemaPath}.`
+                `Created extensionless symlink ${symlinkPath} -> ${target}.`
             );
             newFiles.push(symlinkPath);
         } else {
             log.info(
-                `--dry-run: Would have created extensionless symlink ${symlinkPath} -> ${materializedSchemaPath}.`
+                `--dry-run: Would have created extensionless symlink ${symlinkPath} to ${target}.`
             );
         }
     }
@@ -157,11 +188,15 @@ async function materializeSchemaVersion(schemaPath, schema = undefined, options 
 }
 
 
-
-
 async function main(argv) {
     const args = neodoc.run(parsedUsage, argv);
-    // console.log(args);
+    console.log(args);
+
+    // Make sure at least one of <schema-file> or --output-dir is provided.
+    if (_.isUndefined(args['<schema-file>']) && _.isUndefined(args['--output-dir'])) {
+        console.error('Must specify at least <schema-file> or --output-dir\n' + parsedUsage.helpText);
+        process.exit(1);
+    }
 
     const options = {
         contentType: args['--content-type'],
@@ -176,20 +211,20 @@ async function main(argv) {
         options.log.level = 'debug';
     }
 
-    const schemaPath = args['<schema-path>'];
+    const log = options.log;
 
-    let schema;
-    if (args['-']) {
-        options.log.info('Reading schema from stdin');
-        schema = await readSchemaFile(0);
-    }
+    const schemaFile = args['<schema-file>'] || 'stdin';
+    // schemaFile will not be stdin if no --output-dir.
+    const schemaDirectory = args['--output-dir'] || path.dirname(schemaFile);
 
     try {
-        return await materializeSchemaVersion(schemaPath, schema, options);
+        log.info(`Reading schema from ${schemaFile}`);
+        const schema = await readObject(schemaFile === 'stdin' ? 0 : schemaFile);
+        await materializeSchemaVersion(schemaDirectory, schema, options);
     } catch (err) {
-        options.log.fatal(`Failed materializing schema at ${schemaPath}.`, err);
+        log.fatal(err, `Failed materializing schema from ${schemaFile} into ${schemaDirectory}.`);
         // TODO: why is this not working?!
-        process.exitCode = 1;
+        process.exit(1);
     }
 }
 

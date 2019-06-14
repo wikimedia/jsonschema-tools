@@ -2,6 +2,8 @@
 
 const testFixture = require('test-fixture');
 const fse = require('fs-extra');
+const path = require('path');
+const yaml = require('js-yaml');
 const assert = require('assert');
 
 const materializeSchemaVersion = require('../index.js');
@@ -73,10 +75,12 @@ describe('materializeSchemaVersion', function() {
 
     tests.forEach((test) => {
         it(test.name, async function() {
-            const schemaPath = fixture.resolve('schemas/basic/current.yaml');
+            const schemaFile = fixture.resolve(test.schemaPath);
+            const schemaDirectory = path.dirname(schemaFile);
+            const schema = yaml.safeLoad(await fse.readFile(schemaFile, 'utf-8'));
 
             const materializedPath = await materializeSchemaVersion(
-                schemaPath, undefined, test.options
+                schemaDirectory, schema, test.options
             );
 
             assert.equal(
@@ -89,7 +93,7 @@ describe('materializeSchemaVersion', function() {
                 test.options.shouldSymlink
             );
             if (test.shouldSymlink) {
-                assert.equald(
+                assert.equal(
                     await fse.realpath(test.expected.symlinkPath),
                     test.expected.materializedPath
                 );

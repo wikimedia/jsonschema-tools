@@ -2,6 +2,6 @@
 ## TODO:
 - configurable URI based schema loader like EventGate
 - derefence JSON $ref
-- JSON vs YAML support
+- JSON AND YAML generation at the same time
 - ??schema repository init (generate new versions of existing current.yaml files) maybe not.
 - use .gitconfig for Schema configuration options? 
