@@ -1,4 +1,7 @@
 
+jsonschema-materialize
+
+
 ## TODO:
 - configurable URI based schema loader like EventGate
 - derefence JSON $ref

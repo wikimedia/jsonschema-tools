@@ -14,6 +14,7 @@ const exec      = util.promisify(require('child_process').exec);
 const defaultOptions = {
     shouldSymlink: true,
     contentType: 'yaml',
+    currentName: 'current',
     schemaVersionField: '$id',
     shouldGitAdd: true,
     dryRun: false,
@@ -29,7 +30,9 @@ const serializers = {
 };
 
 const usage = `
-usage: jsonschema-materialize [options] [<schema-file>]
+usage: materialize-jsonschema [options] [<schema-file>]
+
+
 
 Extracts the schema version from a field in the schema
 and outputs a file named for the version with the derefenced schema.
@@ -142,7 +145,6 @@ function gitAddCommand(paths) {
 async function materializeSchemaVersion(schemaDirectory, schema, options = {}) {
     _.defaults(options, defaultOptions);
     const log = options.log;
-    // const schemaDirectory = path.dirname(schemaPath);
 
     const version = schemaVersion(schema, options.schemaVersionField);
 
@@ -190,6 +192,7 @@ async function materializeSchemaVersion(schemaDirectory, schema, options = {}) {
 
     return materializedSchemaPath;
 }
+
 
 async function main(argv) {
     const args = neodoc.run(parsedUsage, argv);

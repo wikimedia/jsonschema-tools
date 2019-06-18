@@ -6,7 +6,9 @@ const path = require('path');
 const yaml = require('js-yaml');
 const assert = require('assert');
 
-const materializeSchemaVersion = require('../index.js');
+const {
+    materializeSchemaVersion,
+} = require('../lib/jsonschema-utilities');
 
 
 describe('materializeSchemaVersion', function() {
@@ -79,13 +81,14 @@ describe('materializeSchemaVersion', function() {
             const schemaDirectory = path.dirname(schemaFile);
             const schema = yaml.safeLoad(await fse.readFile(schemaFile, 'utf-8'));
 
-            const materializedPath = await materializeSchemaVersion(
+            const materializedFiles = await materializeSchemaVersion(
                 schemaDirectory, schema, test.options
             );
 
+
             assert.equal(
-                materializedPath,
-                fixture.resolve(test.expected.materializedPath)
+                materializedFiles[0],
+                fixture.resolve(test.expected.materializedPath),
             );
 
             assert.equal(
