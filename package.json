@@ -1,6 +1,6 @@
 {
   "name": "jsonschema-tools",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Utilties to help manage a repository of versioned JSONSchemas.",
   "main": "lib/jsonschema-tools.js",
   "scripts": {
@@ -8,8 +8,7 @@
     "lint": "eslint --cache --max-warnings 0 index.js test/test.js"
   },
   "bin": {
-    "jsonschema-materialize": "./scripts/jsonschema-materialize.js",
-    "jsonschema-materialize-git-hook": "./scripts/jsonschema-materialize-git-hook.js"
+    "jsonschema-tools": "./scripts/jsonschema-tools.js"
   },
   "keywords": [
     "jsonschema",

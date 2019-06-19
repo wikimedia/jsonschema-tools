@@ -12,7 +12,7 @@ const exec      = util.promisify(require('child_process').exec);
 
 const defaultOptions = {
     shouldSymlink: true,
-    contentType: 'yaml',
+    contentTypes: ['yaml'],
     currentName: 'current.yaml',
     schemaVersionField: '$id',
     shouldDereference: true,
@@ -22,7 +22,6 @@ const defaultOptions = {
 };
 
 
-// TODO: support reading in from config file?  JSON? INI (git config)?
 
 /**
  * Map of contentType to serializer.
@@ -117,13 +116,34 @@ async function createSymlink(targetPath, symlinkPath) {
 }
 
 
-
+/**
+ * Stages paths into the git repository at gitRoot via git add.
+ * @param {Array<string>} paths
+ * @param {string} gitRoot
+ * @param {Object} options
+ * @return {Object}
+ */
 function gitAdd(paths, gitRoot, options = {}) {
     _.defaults(options, defaultOptions);
     const command = `git add ${paths.join(' ')}`;
     return execCommand(command, gitRoot, options);
 }
 
+/**
+ * Finds the git root path relative to the current working directory.
+ * @return {string}
+ */
+async function findGitRoot() {
+    return (await execCommand('git rev-parse --show-toplevel')).stdout.trim();
+}
+
+/**
+ * Finds modified paths in gitRoot.  If options.gitStaged, this will look for
+ * modified staged files.  Else this will look ifor modified files in the working directory.
+ * @param {string} gitRoot
+ * @param {Object} options
+ * @return {Array<string>}
+ */
 async function gitModifiedSchemaPaths(gitRoot, options = {}) {
     _.defaults(options, defaultOptions);
     const command = `git diff ${options.gitStaged ? '--cached' : ''} --name-only --diff-filter=ACM`;
@@ -132,6 +152,10 @@ async function gitModifiedSchemaPaths(gitRoot, options = {}) {
 }
 
 
+/**
+ * TODO
+ * @param {Object} schema
+ */
 async function dereferenceSchema(schema) {
     return schema;
 }
@@ -143,7 +167,7 @@ async function dereferenceSchema(schema) {
  * @param {string} schemaDirectory directory in which to materialize schema
  * @param {Object} schema Schema to materialize
  * @param {Object} options
- * @return {Promise<string>} path of newly materialized schema
+ * @return {Promise<string>} path of newly generated files
  */
 async function materializeSchemaVersion(schemaDirectory, schema, options = {}) {
     _.defaults(options, defaultOptions);
@@ -152,44 +176,57 @@ async function materializeSchemaVersion(schemaDirectory, schema, options = {}) {
     const version = schemaVersion(schema, options.schemaVersionField);
 
     // TODO: deference and validate schema here.
-    const materializedSchemaPath = path.join(
-        schemaDirectory, `${version}.${options.contentType}`
-    );
+    // schema = if shouldDereference dereference(schema);
 
-    let generatedFiles = [];
-    if (!options.dryRun) {
-        await writeObject(schema, materializedSchemaPath, options.contentType);
-        log.info(`Materialized schema at ${materializedSchemaPath}.`);
-        generatedFiles.push(materializedSchemaPath);
-    }
-    else {
-        log.info(`--dry-run: Would have materialized schema at ${materializedSchemaPath}.`);
-    }
 
-    if (options.shouldSymlink) {
-        const symlinkPath = extensionlessPath(materializedSchemaPath);
-        const target = path.basename(materializedSchemaPath);
+    return _.flatten(await Promise.all(options.contentTypes.map(async (contentType) => {
+        let generatedFiles = [];
+        const materializedSchemaPath = path.join(
+            schemaDirectory, `${version}.${contentType}`
+        );
+
         if (!options.dryRun) {
-            await createSymlink(target, symlinkPath);
-            log.info(
-                `Created extensionless symlink ${symlinkPath} -> ${target}.`
-            );
-            generatedFiles.push(symlinkPath);
+            await writeObject(schema, materializedSchemaPath, contentType);
+            log.info(`Materialized schema at ${materializedSchemaPath}.`);
+            generatedFiles.push(materializedSchemaPath);
         } else {
-            log.info(
-                `--dry-run: Would have created extensionless symlink ${symlinkPath} to ${target}.`
-            );
+            log.info(`--dry-run: Would have materialized schema at ${materializedSchemaPath}.`);
         }
-    }
 
-    return generatedFiles;
+        // Only create the extensionless symlink to the first listed contentType.
+        if (options.shouldSymlink && contentType === options.contentTypes[0]) {
+            const symlinkPath = extensionlessPath(materializedSchemaPath);
+            const target = path.basename(materializedSchemaPath);
+            if (!options.dryRun) {
+                await createSymlink(target, symlinkPath);
+                log.info(
+                    `Created extensionless symlink ${symlinkPath} -> ${target}.`
+                );
+                generatedFiles.push(symlinkPath);
+            } else {
+                log.info(
+                    `--dry-run: Would have created extensionless symlink ${symlinkPath} to ${target}.`
+                );
+            }
+        }
+
+        return generatedFiles;
+    })));
+
 }
 
 
+/**
+ * Finds modified 'current' schema files in gitRoot and materializes them.
+ *
+ * @param {string} gitRoot If not given, this will be discovered by calling findGitRoot.
+ * @param {Object} options
+ * @return {Promise<Array<string>>} List of files that were generated
+ */
 async function materializeModifiedSchemas(gitRoot = undefined, options = {}) {
     _.defaults(options, defaultOptions);
 
-    gitRoot = gitRoot || process.cwd();
+    gitRoot = gitRoot || await findGitRoot();
     options.log.info(`Looking for modified schema files in ${gitRoot}`);
     const schemaPaths = await gitModifiedSchemaPaths(gitRoot, options);
 
@@ -199,8 +236,8 @@ async function materializeModifiedSchemas(gitRoot = undefined, options = {}) {
     } else {
         const generatedFiles = _.flatten(await Promise.all(schemaPaths.map(async (schemaPath) => {
             const schemaFile = path.resolve(gitRoot, schemaPath);
-            const schema = await readObject(schemaFile);
             const schemaDirectory = path.dirname(schemaFile);
+            const schema = await readObject(schemaFile);
             return materializeSchemaVersion(
                 schemaDirectory,
                 schema,
@@ -225,6 +262,7 @@ module.exports = {
     defaultOptions,
     readObject,
     gitAdd,
+    findGitRoot,
     dereferenceSchema,
     materializeSchemaVersion,
     materializeModifiedSchemas

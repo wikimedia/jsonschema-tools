@@ -1,58 +1,26 @@
 #!/usr/bin/env node
 'use strict';
 
-const path      = require('path');
+const _     = require('lodash');
+const fse   = require('fs-extra');
+const path  = require('path');
 const yargs = require('yargs');
-const _ = require('lodash');
 
 const {
     dereferenceSchema,
     materializeSchemaVersion,
     materializeModifiedSchemas,
     readObject,
+    findGitRoot,
     defaultOptions,
 } = require('../index.js');
 
 
-// const doc = `
-// jsonschema-tools
-
-// Tools for working with versioned JSONSchema in a git repository.
-
-// Usage:
-//   jsonschema-tools materialize  [-G] [<file>]
-//   jsonschema-tools materialize-modified [options] [<working-dir>]
-//   jsonschema-tools dereference [<file>]
-//   jsonschema-tools install-git-hook [<working-dir>]
-
-// options:
-//     -h, --help
-
-//     -o, --output-dir <output-directory>     Directory in which to write versioned schema file.
-
-//     -c, --content-type <content-type>       Format to serialize schemas in. json or yaml.
-//                                             [default: ${defaultOptions.contentType}]
-
-//     -V, --version-field <version-field>     Field in schemas from which to extract the
-//                                             schema version.
-//                                             [default: ${defaultOptions.schemaVersionField}]
-
-//     -G, --no-git-add                        By default, generated files will be added to git.
-//                                             This requires that you have git installed and
-//                                             you are running this script from within a git
-//                                             repository directory.
-
-//     -S, --no-symlink                        By default, extensionless symlinks will be
-//                                             generated. E.g 1.0.0 -> 1.0.0.yaml.
-
-//     -v, --verbose
-
-//     -n, --dry-run
-// `;
-// const parsedUsage = neodoc.parse(usage, { smartOptions: true });
-
-
-
+/**
+ * Allows for specifying comma separated array types with yargs.
+ * @param {Array} arr
+ * @return {Array}
+ */
 function coerceArrayOption(arr) {
     return _.uniq(_.flatMap(arr, e => e.split(',')));
 }
@@ -74,7 +42,7 @@ const commonOptions = {
         alias: 'content-types',
         desc: 'Serialization content types.',
         type: 'array',
-        default: [defaultOptions.contentType],
+        default: defaultOptions.contentTypes,
         choices: ['yaml', 'json'],
         coerce: coerceArrayOption
     },
@@ -102,6 +70,27 @@ const commonOptions = {
     },
 };
 
+const gitOptions = {
+    'N': {
+        alias: 'current-name',
+        desc: 'Filename of modified files to look for.',
+        type: 'string',
+        default: 'current.yaml',
+    },
+    'U': {
+        alias: 'unstaged',
+        desc: 'If given, will look for unstaged modified files instead of staged (--cached) ones.',
+        type: 'boolean',
+        default: false,
+    },
+    'G': {
+        alias: 'no-git-add',
+        desc: 'If given, newly generated files will not be staged to git via git add.',
+        type: 'boolean',
+        default: false,
+    }
+};
+
 const schemaPathArg = {
     desc: 'Path to the schema. If not given, the schema will be read from stdin.',
     type: 'string',
@@ -109,27 +98,26 @@ const schemaPathArg = {
 };
 
 
+
 async function dereference(args) {
     console.log('TODO', args);
 }
 
 async function materialize(args) {
-    const log = defaultOptions.log;
-    if (args.verbose) {
-        defaultOptions.log.level = 'debug';
-    }
-
     const options = {
-        contentType: args.contentTypes[0],
+        contentTypes: args.contentTypes,
         schemaVersionField: args.versionField,
         shouldDereference: !args.noDereference,
         shouldSymlink: !args.noSymlink,
         dryRun: args.dryRyn,
-        log,
+        log: defaultOptions.log,
     };
 
     if (_.isEmpty(args.schemaPath)) {
         args.schemaPath.push(0);
+    }
+    if (args.verbose) {
+        defaultOptions.log.level = 'debug';
     }
 
     _.forEach(args.schemaPath, async (schemaFile) => {
@@ -156,13 +144,8 @@ async function materialize(args) {
 }
 
 async function materializeModified(args) {
-    const log = defaultOptions.log;
-    if (args.verbose) {
-        defaultOptions.log.level = 'debug';
-    }
-
     const options = {
-        contentType: args.contentTypes[0],
+        contentTypes: args.contentTypes,
         schemaVersionField: args.versionField,
         shouldSymlink: !args.noSymlink,
         shouldDereference: !args.noDereference,
@@ -170,10 +153,55 @@ async function materializeModified(args) {
         gitStaged: !args.unstaged,
         shouldGitAdd: !args.noGitAdd,
         dryRun: args.dryRyn,
-        log,
+        log: defaultOptions.log,
     };
+    if (args.verbose) {
+        options.log.level = 'debug';
+    }
 
     await materializeModifiedSchemas(args.gitRoot, options);
+}
+
+
+const preCommitTemplate = _.template(`#!/usr/bin/env node
+'use strict';
+
+const {
+    materializeModifiedSchemas,
+} = require('jsonschema-tools');
+
+
+const options = {
+    contentTypes: <%= JSON.stringify(contentTypes) %>,
+    schemaVersionField: '<%= versionField %>',
+    shouldSymlink: <%= !noSymlink %>,
+    shouldDereference: <%= !noDereference %>,
+    currentName: '<%= currentName %>',
+    gitStaged: <%= !unstaged %>,
+    shouldGitAdd: <%= !noGitAdd %>,
+    dryRun: <%= dryRun %>,
+};
+
+materializeModifiedSchemas(undefined, options);
+`);
+
+async function installGitHook(args) {
+    const gitRoot = args.gitRoot || await findGitRoot();
+    const preCommitPath = path.join(gitRoot, '.git', 'hooks', 'pre-commit');
+    const preCommitContent = preCommitTemplate(args);
+
+    const log = defaultOptions.log;
+    if (args.verbose) {
+        log.level = 'debug';
+    }
+
+    log.info(`Saviing jsonschema-tools materialize-modified pre-commit hook to ${preCommitPath}`);
+    if (!args.dryRun) {
+        await fse.writeFile(preCommitPath, preCommitContent);
+        await fse.chmod(preCommitPath, 0o755);
+    } else {
+        log.info('--dry-run: Not installing pre-commit hook.');
+    }
 }
 
 const argParser = yargs
@@ -184,36 +212,17 @@ const argParser = yargs
         dereference
     )
     .command(
-        'materialize [schema-path...]', 'Materialize a JSONSchema into a versioned file.',
+        'materialize [schema-path...]', 'Materializes JSONSchemas into versioned files.',
         y => y
             .options(commonOptions)
             .positional('schema-path', schemaPathArg),
         materialize
     )
     .command(
-        'materialize-modified [git-root]', 'Materialize a JSONSchema into a versioned file.',
+        'materialize-modified [git-root]', 'Looks for git modified JSONSchema files and materializes them.',
         y => y
             .options(commonOptions)
-            .options({
-                'N': {
-                    alias: 'current-name',
-                    desc: 'Filename of modified files to look for.',
-                    type: 'string',
-                    default: 'current.yaml',
-                },
-                'U': {
-                    alias: 'unstaged',
-                    desc: 'If given, will look for unstaged modified files instead of staged (--cached) ones.',
-                    type: 'boolean',
-                    default: false,
-                },
-                'G': {
-                    alias: 'no-git-add',
-                    desc: 'If given, newly generated files will not be staged to git via git add.',
-                    type: 'boolean',
-                    default: false,
-                }
-            })
+            .options(gitOptions)
             .positional('git-root', {
                 desc: 'Path to git-root in which to look for modified schemas.',
                 type: 'string',
@@ -221,71 +230,19 @@ const argParser = yargs
             }),
         materializeModified
     )
+    .command(
+        'install-git-hook [git-root]', 'Installs a git pre-commit hook that will materialize modified schema files before commit.',
+        y => y
+            .options(commonOptions)
+            .options(gitOptions)
+            .positional('git-root', {
+                desc: 'Local git repository root in which to install git pre-commit hook',
+                type: 'string',
+                normalize: true,
+            }),
+        installGitHook
+    )
     .help();
-
-
-
-
-
-// async function main() {
-//     const args =  argParser.argv;
- 
-
-//     console.log(args);
-//     console.log(options);
-
-
-
-    // switch (command) {
-    //     case 'dereference':
-    //         console.log('TODO');
-    //         break;
-
-    //     case 'materialize':
-
-
-            
-    //         break;
-    // }
-
-    // const args = neodoc.run(parsedUsage, argv);
-    // console.log(args);
-
-    // const args =  docopt(doc);
-    // const args =  argParser.argv;
-    // console.log('args are ', args);
-    // console.log('o is ', args.o);
-    // process.exit(0);
-
-//     const options = {
-//         contentType: args['--content-type'],
-//         schemaVersionField: args['--version-field'],
-//         shouldGitAdd: !args['--no-git-add'],
-//         shouldSymlink: !args['--no-symlink'],
-//         dryRun: args['--dry-run'],
-//         log: defaultOptions.log,
-//     };
-
-//     if (args['--verbose']) {
-//         options.log.level = 'debug';
-//     }
-
-//     const log = options.log;
-
-//     const schemaFile = args['<schema-file>'];
-//     // schemaFile will not be stdin if no --output-dir.
-//     const schemaDirectory = args['--output-dir'] || path.dirname(schemaFile);
-
-//     try {
-//         log.info(`Reading schema from ${schemaFile}`);
-//         const schema = await readObject(schemaFile);
-//         await materializeSchemaVersion(schemaDirectory, schema, options);
-//     } catch (err) {
-//         log.fatal(err, `Failed materializing schema from ${schemaFile} into ${schemaDirectory}.`);
-//         // TODO: why is this not working?!
-//         process.exit(1);
-//     }
-// }
 
 if (require.main === module) {
     argParser.argv;
