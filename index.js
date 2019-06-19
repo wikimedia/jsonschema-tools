@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 'use strict';
 
 const _         = require('lodash');
@@ -7,19 +6,22 @@ const path      = require('path');
 const semver    = require('semver');
 const fse       = require('fs-extra');
 const pino      = require('pino');
-const neodoc    = require('neodoc');
 const util      = require('util');
 const exec      = util.promisify(require('child_process').exec);
+
 
 const defaultOptions = {
     shouldSymlink: true,
     contentType: 'yaml',
     currentName: 'current',
     schemaVersionField: '$id',
-    shouldGitAdd: true,
+    shouldDereference: true,
     dryRun: false,
     log: pino({ level: 'warn', prettyPrint: true }),
 };
+
+
+// TODO: support reading in from config file?  JSON? INI (git config)?
 
 /**
  * Map of contentType to serializer.
@@ -29,29 +31,11 @@ const serializers = {
     'json': JSON.stringify
 };
 
-const usage = `
-usage: materialize-jsonschema [options] [<schema-file>]
-
-
-
-Extracts the schema version from a field in the schema
-and outputs a file named for the version with the derefenced schema.
-If no <schema-file> is provided, schema will be read from stdin.
-If the schema is read from stdin one of <schema-file> or --output-dir is required.
-If --output-dir is not provided, the output directory
-is assumed to be the parent directory of <schema-file>.
-
-options:
-    -h, --help
-    -o, --output-dir <output-directory>     Directory in which to write versioned schema file.
-    -c, --content-type <content-type>       [Default: ${defaultOptions.contentType}]
-    -V, --version-field <version-field>     [Default: ${defaultOptions.schemaVersionField}]
-    -G, --no-git-add
-    -S, --no-symlink
-    -v, --verbose
-    -n, --dry-run
-`;
-const parsedUsage = neodoc.parse(usage, { smartOptions: true });
+function execCommand(command, options) {
+    _.defaults(options, defaultOptions);
+    options.log.info(`Running: ${command}`);
+    return exec(command);
+}
 
 /**
  * Reads in a yaml or json file from file
@@ -125,14 +109,27 @@ async function createSymlink(targetPath, symlinkPath) {
     return fse.symlink(targetPath, symlinkPath);
 }
 
-/**
- * Given a list of paths, returns a git add command
- * @param {Array<string>} paths
- * @return {string}
- */
-function gitAddCommand(paths) {
-    return `git add ${paths.join(' ')}`;
+
+
+function gitAdd(paths, options = {}) {
+    _.defaults(options, defaultOptions);
+    const command = `git add ${paths.join(' ')}`;
+    return execCommand(command, options.log);
 }
+
+
+async function gitModifiedSchemaPaths(cached = true, options = {}) {
+    _.defaults(options, defaultOptions);
+
+    const command = `git diff ${cached ? '--cached' : ''} --name-only --diff-filter=AM`;
+    return (await execCommand(command, options.log)).stdout.trim().split('\n');
+}
+
+
+async function dereferenceSchema(schema) {
+    return schema;
+}
+
 
 /**
  * Materializes a versioned schema file in the directory.
@@ -180,63 +177,42 @@ async function materializeSchemaVersion(schemaDirectory, schema, options = {}) {
     }
 
     if (options.shouldGitAdd && !options.dryRun) {
-        const command = gitAddCommand(newFiles);
-        log.info(`New schema files have been generated. Running:\n${command}`);
+        log.info('New schema files have been generated. Adding them to git');
         try {
-            await exec(command);
+            await gitAdd(newFiles, options);
         } catch (err) {
-            log.error(err, `Failed git add of new schema files: ${command}`);
+            log.error(err, 'Failed git add of new schema files.');
             throw err;
         }
     }
 
-    return materializedSchemaPath;
+    return newFiles;
 }
 
 
-async function main(argv) {
-    const args = neodoc.run(parsedUsage, argv);
-    // console.log(args);
+async function materializeModifiedSchemas(cached = true, options = {}) {
+    _.defaults(options, defaultOptions);
 
-    // Ensure at least one of <schema-file> or --output-dir is provided.
-    if (_.isUndefined(args['<schema-file>']) && _.isUndefined(args['--output-dir'])) {
-        /* eslint no-console: "off" */
-        console.error('Must specify at least <schema-file> or --output-dir\n' + parsedUsage.helpText);
-        process.exit(1);
-    }
+    const schemaPaths = await gitModifiedSchemaPaths(cached, options);
+    const newFiles = _.flatMap(schemaPaths, async (schemaPath) => {
+        const schema = readObject(schemaPath);
+        const schemaDirectory = path.dirname(schemaPath);
+        return await materializeSchemaVersion(
+            schemaDirectory,
+            schema,
+            options
+        );
+    });
 
-    const options = {
-        contentType: args['--content-type'],
-        schemaVersionField: args['--version-field'],
-        shouldGitAdd: !args['--no-git-add'],
-        shouldSymlink: !args['--no-symlink'],
-        dryRun: args['--dry-run'],
-        log: defaultOptions.log,
-    };
-
-    if (args['--verbose']) {
-        options.log.level = 'debug';
-    }
-
-    const log = options.log;
-
-    const schemaFile = args['<schema-file>'] || 'stdin';
-    // schemaFile will not be stdin if no --output-dir.
-    const schemaDirectory = args['--output-dir'] || path.dirname(schemaFile);
-
-    try {
-        log.info(`Reading schema from ${schemaFile}`);
-        const schema = await readObject(schemaFile === 'stdin' ? 0 : schemaFile);
-        await materializeSchemaVersion(schemaDirectory, schema, options);
-    } catch (err) {
-        log.fatal(err, `Failed materializing schema from ${schemaFile} into ${schemaDirectory}.`);
-        // TODO: why is this not working?!
-        process.exit(1);
-    }
+    return newFiles;
 }
 
-if (require.main === module) {
-    main(process.argv);
-}
+module.exports = {
+    defaultOptions,
+    readObject,
+    gitAdd,
+    dereferenceSchema,
+    materializeSchemaVersion,
+    materializeModifiedSchemas
+};
 
-module.exports = materializeSchemaVersion;
