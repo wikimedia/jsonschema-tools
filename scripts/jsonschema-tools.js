@@ -236,7 +236,7 @@ const argParser = yargs
             .options(commonOptions)
             .options(gitOptions)
             .positional('git-root', {
-                desc: 'Local git repository root in which to install git pre-commit hook',
+                desc: 'Local git repository root in which to install git pre-commit hook.  If not given, this will find the git root starting at the current working directory.',
                 type: 'string',
                 normalize: true,
             }),
