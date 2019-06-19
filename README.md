@@ -1,11 +1,9 @@
+# jsonschema-tools
 
-jsonschema-materialize
+This is a library and CLI to work with a 'repository' of versioned JSONSchemas.
+It supports
 
+- dereferencing of JSON Pointers (TODO)
+- Generation of semanticly named version files
+- Auto version file generation of modified 'current' versions via a git pre-commit hook
 
-## TODO:
-- configurable URI based schema loader like EventGate
-- derefence JSON $ref
-- JSON AND YAML generation at the same time
-- ??schema repository init (generate new versions of existing current.yaml files) maybe not.
-- use .gitconfig for Schema configuration options? 
-- How to auto install pre-commit hook?
