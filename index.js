@@ -13,10 +13,11 @@ const exec      = util.promisify(require('child_process').exec);
 const defaultOptions = {
     shouldSymlink: true,
     contentType: 'yaml',
-    currentName: 'current',
+    currentName: 'current.yaml',
     schemaVersionField: '$id',
     shouldDereference: true,
     dryRun: false,
+    gitStaged: true,
     log: pino({ level: 'warn', prettyPrint: true }),
 };
 
@@ -31,10 +32,16 @@ const serializers = {
     'json': JSON.stringify
 };
 
-function execCommand(command, options) {
+function execCommand(command, cwd, options = {}) {
     _.defaults(options, defaultOptions);
-    options.log.info(`Running: ${command}`);
-    return exec(command);
+
+    if (cwd) {
+        options.log.debug(`Running: \`${command}\` in ${cwd}`);
+        return exec(command, { cwd });
+    } else {
+        options.log.debug(`Running: \`${command}\``);
+        return exec(command);
+    }
 }
 
 /**
@@ -111,18 +118,17 @@ async function createSymlink(targetPath, symlinkPath) {
 
 
 
-function gitAdd(paths, options = {}) {
+function gitAdd(paths, gitRoot, options = {}) {
     _.defaults(options, defaultOptions);
     const command = `git add ${paths.join(' ')}`;
-    return execCommand(command, options.log);
+    return execCommand(command, gitRoot, options);
 }
 
-
-async function gitModifiedSchemaPaths(cached = true, options = {}) {
+async function gitModifiedSchemaPaths(gitRoot, options = {}) {
     _.defaults(options, defaultOptions);
-
-    const command = `git diff ${cached ? '--cached' : ''} --name-only --diff-filter=AM`;
-    return (await execCommand(command, options.log)).stdout.trim().split('\n');
+    const command = `git diff ${options.gitStaged ? '--cached' : ''} --name-only --diff-filter=ACM`;
+    const modifiedFiles = (await execCommand(command, gitRoot, options)).stdout.trim().split('\n');
+    return _.filter(modifiedFiles, file => path.basename(file) === options.currentName);
 }
 
 
@@ -150,11 +156,11 @@ async function materializeSchemaVersion(schemaDirectory, schema, options = {}) {
         schemaDirectory, `${version}.${options.contentType}`
     );
 
-    let newFiles = [];
+    let generatedFiles = [];
     if (!options.dryRun) {
         await writeObject(schema, materializedSchemaPath, options.contentType);
         log.info(`Materialized schema at ${materializedSchemaPath}.`);
-        newFiles.push(materializedSchemaPath);
+        generatedFiles.push(materializedSchemaPath);
     }
     else {
         log.info(`--dry-run: Would have materialized schema at ${materializedSchemaPath}.`);
@@ -168,7 +174,7 @@ async function materializeSchemaVersion(schemaDirectory, schema, options = {}) {
             log.info(
                 `Created extensionless symlink ${symlinkPath} -> ${target}.`
             );
-            newFiles.push(symlinkPath);
+            generatedFiles.push(symlinkPath);
         } else {
             log.info(
                 `--dry-run: Would have created extensionless symlink ${symlinkPath} to ${target}.`
@@ -176,35 +182,43 @@ async function materializeSchemaVersion(schemaDirectory, schema, options = {}) {
         }
     }
 
-    if (options.shouldGitAdd && !options.dryRun) {
-        log.info('New schema files have been generated. Adding them to git');
-        try {
-            await gitAdd(newFiles, options);
-        } catch (err) {
-            log.error(err, 'Failed git add of new schema files.');
-            throw err;
-        }
-    }
-
-    return newFiles;
+    return generatedFiles;
 }
 
 
-async function materializeModifiedSchemas(cached = true, options = {}) {
+async function materializeModifiedSchemas(gitRoot = undefined, options = {}) {
     _.defaults(options, defaultOptions);
 
-    const schemaPaths = await gitModifiedSchemaPaths(cached, options);
-    const newFiles = _.flatMap(schemaPaths, async (schemaPath) => {
-        const schema = readObject(schemaPath);
-        const schemaDirectory = path.dirname(schemaPath);
-        return await materializeSchemaVersion(
-            schemaDirectory,
-            schema,
-            options
-        );
-    });
+    gitRoot = gitRoot || process.cwd();
+    options.log.info(`Looking for modified schema files in ${gitRoot}`);
+    const schemaPaths = await gitModifiedSchemaPaths(gitRoot, options);
 
-    return newFiles;
+    if (_.isEmpty(schemaPaths)) {
+        options.log.info('No modfiied schema paths were found.');
+        return [];
+    } else {
+        const generatedFiles = _.flatten(await Promise.all(schemaPaths.map(async (schemaPath) => {
+            const schemaFile = path.resolve(gitRoot, schemaPath);
+            const schema = await readObject(schemaFile);
+            const schemaDirectory = path.dirname(schemaFile);
+            return materializeSchemaVersion(
+                schemaDirectory,
+                schema,
+                options
+            );
+        })));
+
+        if (options.shouldGitAdd && !options.dryRun) {
+            options.log.info(`New schema files have been generated. Adding them to git: ${generatedFiles}`);
+            try {
+                await gitAdd(generatedFiles, gitRoot, options);
+            } catch (err) {
+                options.log.error(err, 'Failed git add of new schema files.');
+                throw err;
+            }
+        }
+        return generatedFiles;
+    }
 }
 
 module.exports = {

@@ -8,6 +8,7 @@ const _ = require('lodash');
 const {
     dereferenceSchema,
     materializeSchemaVersion,
+    materializeModifiedSchemas,
     readObject,
     defaultOptions,
 } = require('../index.js');
@@ -121,6 +122,7 @@ async function materialize(args) {
     const options = {
         contentType: args.contentTypes[0],
         schemaVersionField: args.versionField,
+        shouldDereference: !args.noDereference,
         shouldSymlink: !args.noSymlink,
         dryRun: args.dryRyn,
         log,
@@ -154,7 +156,24 @@ async function materialize(args) {
 }
 
 async function materializeModified(args) {
-    console.log('TODO', args);
+    const log = defaultOptions.log;
+    if (args.verbose) {
+        defaultOptions.log.level = 'debug';
+    }
+
+    const options = {
+        contentType: args.contentTypes[0],
+        schemaVersionField: args.versionField,
+        shouldSymlink: !args.noSymlink,
+        shouldDereference: !args.noDereference,
+        currentName: args.currentName,
+        gitStaged: !args.unstaged,
+        shouldGitAdd: !args.noGitAdd,
+        dryRun: args.dryRyn,
+        log,
+    };
+
+    await materializeModifiedSchemas(args.gitRoot, options);
 }
 
 const argParser = yargs
@@ -176,24 +195,29 @@ const argParser = yargs
         y => y
             .options(commonOptions)
             .options({
+                'N': {
+                    alias: 'current-name',
+                    desc: 'Filename of modified files to look for.',
+                    type: 'string',
+                    default: 'current.yaml',
+                },
                 'U': {
                     alias: 'unstaged',
                     desc: 'If given, will look for unstaged modified files instead of staged (--cached) ones.',
                     type: 'boolean',
                     default: false,
                 },
-                'N': {
-                    alias: 'current-name',
-                    desc: 'Filename of modified files to look for.',
-                    type: 'string',
-                    default: 'current.yaml',
+                'G': {
+                    alias: 'no-git-add',
+                    desc: 'If given, newly generated files will not be staged to git via git add.',
+                    type: 'boolean',
+                    default: false,
                 }
             })
             .positional('git-root', {
                 desc: 'Path to git-root in which to look for modified schemas.',
                 type: 'string',
                 normalize: true,
-                default: './',
             }),
         materializeModified
     )
