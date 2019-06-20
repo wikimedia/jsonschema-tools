@@ -3,7 +3,7 @@
 A library and CLI to work with a repository of versioned JSONSchemas.
 
 jsonschema-tools supports
-- dereferencing of JSON Pointers (TODO)
+- dereferencing of JSON Pointers
 - Generation of semanticly versioned files
 - Auto file version generation of modified 'current' versions via a git pre-commit hook
 
@@ -82,3 +82,8 @@ globally somewhere), then run `jsonschema-tools install-git-hook` from
 your git working copy checkout.  This will install .git/hooks/pre-commit.
 pre-commit is a NodeJS script, so `require('jsonschema-tools')` must work
 from within your git checkout.
+
+
+# TODO:
+- dereference and $ref resolver tests
+- Schema validation given a meta schema.

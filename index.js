@@ -8,7 +8,7 @@ const fse       = require('fs-extra');
 const pino      = require('pino');
 const util      = require('util');
 const exec      = util.promisify(require('child_process').exec);
-
+const RefParser = require('json-schema-ref-parser');
 
 const defaultOptions = {
     shouldSymlink: true,
@@ -16,10 +16,124 @@ const defaultOptions = {
     currentName: 'current.yaml',
     schemaVersionField: '$id',
     shouldDereference: true,
+    schemaBaseUris: [process.cwd()],
     dryRun: false,
     gitStaged: true,
     log: pino({ level: 'warn', prettyPrint: true }),
 };
+
+
+
+// https://tools.ietf.org/html/rfc3986#section-3.1
+const uriProtocolRegex = /^[a-zA-Z0-9+.-]+:\/\//;
+/**
+ * Returns true if the uri has protocol schema on the front, else false.
+ * @param {string} uri
+ * @return {boolean}
+ */
+function uriHasProtocol(uri) {
+    return uriProtocolRegex.test(uri);
+}
+
+/**
+ * Takes a possibly relative uri, and augments it so that it is better suited for use in requests.
+ * If the uri is already qualified (e.g. is starts with a protocol scheme), baseUri will
+ * not be prepended.
+ * If the uri already ends in a file extensions, defaultFileExtension  will not be appended.
+ * If the baseUri given does not have a protocol schema, it is assumed to be file://.
+ * file:// paths will be resolved with path.resolve to be transformed into absolute file paths.
+ * @param {string} uri
+ *      uri to resolve with baseUri and defaultFileExtension
+ * @param {string} baseUri
+ *      If given, uris that don't start with a protocol scheme will be prepended with this.
+ * @return {Promise<Object>}
+ */
+function resolveUri(uri, baseUri) {
+    let url = uri;
+    // If the uri doesn't have a protocol, then we can use
+    // the given baseUri as the default.
+    if (baseUri && !uriHasProtocol(url)) {
+        url = baseUri + url;
+    }
+
+    // If the url still doesn't have a protocol, assume it should be file://.
+    if (!uriHasProtocol(url)) {
+        url = `file://${path.resolve(url)}`;
+    }
+    return url;
+}
+
+
+/**
+ * Create a schema resolver wrapper for both file and http.
+ * We want to be able to prefix any $ref URI in a schema with
+ * schema base URIs in order to look up schemas from a configurable
+ * local or remote URL.  The returned object should be passed to
+ * RefParser.dereference options as the 'resolve' object.
+ * It will wrap both the default json-schema-ref-parser http
+ * and file resolvers to prefix the $ref URI with each of the
+ * configured schemaBaseUris and attempt to resolve them.
+ * Whichver resolves first will be used.
+ *
+ * This resolver handles both file and http because
+ * the $refs are not prefixed in the schemas, and as such
+ * we don't know if the final URL will be file or http based.
+ * You should use the object returned by this function
+ * as the value of both resolve.file and resolve.http
+ * when you call a json-schema-ref-parser function.
+ *
+ * Example:
+ *
+ *  schemaResolver = createSchemaResolver([
+ *      'file:///path/to/local/schema/repo/'
+ *      'http://remote.schema.repo/path/to/schema/repo/'
+ *  ]);
+ *
+ *  refParserOptions = {
+ *      resolve: {
+ *          file: schemaResolver,
+ *          http: schemaResolver,
+ *      }
+ *  }
+ *  dereferencedSchema = RefParser.dereference('/the/best/schema/1.0.0', refParserOptions);
+ *
+ * @param {Array<string>} schemaBaseUris
+ * @return {Object}
+ */
+function createSchemaResolver(schemaBaseUris) {
+    // We will use the built in resolveers for file and http once
+    // we transform the $ref URI prefixed with the schemaBaseUris.
+    const fileResolver = require('json-schema-ref-parser/lib/resolvers/file');
+    const httpResolver = require('json-schema-ref-parser/lib/resolvers/http');
+
+    return {
+        canRead(file) {
+            return fileResolver.canRead(file) || httpResolver.canRead(file);
+        },
+
+        async read(file) {
+            const files = _.map(schemaBaseUris, (baseUri) => {
+                const f = _.clone(file);
+                f.url = resolveUri(file.url, baseUri);
+                return f;
+            });
+            // This is a 'fold' like operation on the resolved file urls,
+            // keeping only the first url to succeed.
+            return files.reduce((promise, f) => {
+                return promise.catch(async () => {
+                    if (fileResolver.canRead(f)) {
+                        return await fileResolver.read(f);
+                    } else if (httpResolver.canRead(f)) {
+                        return await httpResolver.read(f);
+                    } else {
+                        throw new Error('Should not get here');
+                    }
+                });
+            }, Promise.reject()); // seed the chain with a rejected promise.
+        }
+    };
+}
+
 
 
 
@@ -31,16 +145,21 @@ const serializers = {
     'json': JSON.stringify
 };
 
-function execCommand(command, cwd, options = {}) {
-    _.defaults(options, defaultOptions);
 
-    if (cwd) {
-        options.log.debug(`Running: \`${command}\` in ${cwd}`);
-        return exec(command, { cwd });
-    } else {
-        options.log.debug(`Running: \`${command}\``);
-        return exec(command);
+/**
+ * Serializes the object as the given contentType, either yaml or json.
+ * @param {Object} object
+ * @param {string} contentType
+ * @return {string}
+ */
+function serialize(object, contentType = 'yaml') {
+    if (_.isUndefined(serializers[contentType])) {
+        throw new Error(
+            `No serializer for ${contentType} is defined. ` +
+            `contentType must be one of ${_.keys(serializers).join(',')}`
+        );
     }
+    return serializers[contentType](object);
 }
 
 /**
@@ -60,16 +179,29 @@ async function readObject(file) {
  * @return {Promise} resolves when file is written
  */
 function writeObject(object, file, contentType) {
-    const serialize = serializers[contentType];
-    if (_.isUndefined(serialize)) {
-        throw new Error(
-            `Cannot write schema file to ${file}, ` +
-            `no serializer for ${contentType} is defined. ` +
-            `contentType must be one of ${_.keys(serializers).join(',')}`
-        );
-    }
-    return fse.writeFile(file, serialize(object));
+    return fse.writeFile(file, serialize(object, contentType));
 }
+
+
+/**
+ * Runs (and logs) command in cwd.
+ * @param {string} command
+ * @param {string} cwd path
+ * @param {Object} options (with options.log for logging)
+ * @return {Promise}
+ */
+function execCommand(command, cwd, options = {}) {
+    _.defaults(options, defaultOptions);
+
+    if (cwd) {
+        options.log.debug(`Running: \`${command}\` in ${cwd}`);
+        return exec(command, { cwd });
+    } else {
+        options.log.debug(`Running: \`${command}\``);
+        return exec(command);
+    }
+}
+
 
 /**
  * Returns a semantic version from a schema given a field
@@ -153,13 +285,26 @@ async function gitModifiedSchemaPaths(gitRoot, options = {}) {
 
 
 /**
- * TODO
+ * Uses the options.schemaBaseUris to create http and file schema resolvers
+ * that prefix schema URIs in $refs with with the base URIs.  These
+ * resolved URLs are then dereferenced in place.
  * @param {Object} schema
+ * @param {Object} options
+ * @return {Promise<Object>} dereferenced schema
  */
-async function dereferenceSchema(schema) {
-    return schema;
-}
+async function dereferenceSchema(schema, options = {}) {
+    _.defaults(options, defaultOptions);
+    const schemaResolver = createSchemaResolver(options.schemaBaseUris);
 
+    options.log.info(`Dereferencing schema from schema base URIs ${options.schemaBaseUris}`);
+    const refParserOptions = {
+        resolve: {
+            file: schemaResolver,
+            http: schemaResolver,
+        }
+    };
+    return await RefParser.dereference(schema, refParserOptions);
+}
 
 /**
  * Materializes a versioned schema file in the directory.
@@ -175,9 +320,12 @@ async function materializeSchemaVersion(schemaDirectory, schema, options = {}) {
 
     const version = schemaVersion(schema, options.schemaVersionField);
 
-    // TODO: deference and validate schema here.
-    // schema = if shouldDereference dereference(schema);
+    if (options.shouldDereference) {
+        options.log.debug('Dereferencing schema');
+        schema = await dereferenceSchema(schema, options);
+    }
 
+    // TODO if shouldValidate against meta schema, do so here.
 
     return _.flatten(await Promise.all(options.contentTypes.map(async (contentType) => {
         let generatedFiles = [];
@@ -261,10 +409,12 @@ async function materializeModifiedSchemas(gitRoot = undefined, options = {}) {
 module.exports = {
     defaultOptions,
     readObject,
+    serialize,
     gitAdd,
     findGitRoot,
     dereferenceSchema,
     materializeSchemaVersion,
-    materializeModifiedSchemas
+    materializeModifiedSchemas,
+    createSchemaResolver,
 };
 

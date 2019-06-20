@@ -11,6 +11,7 @@ const {
     materializeSchemaVersion,
     materializeModifiedSchemas,
     readObject,
+    serialize,
     findGitRoot,
     defaultOptions,
 } = require('../index.js');
@@ -33,10 +34,17 @@ const commonOptions = {
         normalize: true,
     },
     'V': {
-        alias: 'version-field',
+        alias: 'schema-version-field',
         desc: 'Field from which to extract the schema\'s version. This will be extracted using lodash#get.',
         type: 'string',
         default: defaultOptions.schemaVersionField,
+    },
+    'u': {
+        alias: 'schema-base-uris',
+        desc: 'URIs to prefix onto JSON $ref URIs when dereferencing schemas.',
+        type: 'array',
+        default: [],
+        coerce: coerceArrayOption
     },
     'c': {
         alias: 'content-types',
@@ -70,6 +78,18 @@ const commonOptions = {
     },
 };
 
+const dereferenceOptions = {
+    'v': commonOptions.v,
+    'u': commonOptions.u,
+    'c': {
+        alias: 'content-type',
+        desc: 'Serialization content type.',
+        type: 'string',
+        default: defaultOptions.contentTypes[0],
+        choices: ['yaml', 'json'],
+    },
+};
+
 const gitOptions = {
     'N': {
         alias: 'current-name',
@@ -99,19 +119,37 @@ const schemaPathArg = {
 
 
 
-async function dereference(args) {
-    console.log('TODO', args);
+function argsToOptions(args) {
+    const options = {};
+    _.keys(args).forEach((key) => {
+        if (key === 'noSymlink') {
+            options.shouldSymlink = !args[key];
+        }
+        else if (key === 'noDereference') {
+            options.shouldDereference = !args[key];
+        }
+        else if (key === 'noGitAdd') {
+            options.shouldGitAdd = !args[key];
+        }
+        else if (key === 'unstaged') {
+            options.gitStaged = !args[key];
+        }
+        else {
+            options[key] = args[key];
+        }
+    });
+
+    options.log = defaultOptions.log;
+    if (args.verbose) {
+        options.log.level = 'debug';
+    }
+
+    return options;
 }
 
-async function materialize(args) {
-    const options = {
-        contentTypes: args.contentTypes,
-        schemaVersionField: args.versionField,
-        shouldDereference: !args.noDereference,
-        shouldSymlink: !args.noSymlink,
-        dryRun: args.dryRyn,
-        log: defaultOptions.log,
-    };
+
+async function dereference(args) {
+    const options = argsToOptions(args);
 
     if (_.isEmpty(args.schemaPath)) {
         args.schemaPath.push(0);
@@ -119,46 +157,55 @@ async function materialize(args) {
     if (args.verbose) {
         defaultOptions.log.level = 'debug';
     }
+    const schemas = await Promise.all(args.schemaPath.map(async (schemaPath) => {
+        try {
+            return await dereferenceSchema(await readObject(schemaPath), options);
+        } catch (err) {
+            options.log.fatal(err, `Failed dereferencing schemas in ${schemaPath}`);
+            process.exit(1);
+        }
+    }));
+
+    if (schemas.length === 1) {
+        process.stdout.write(serialize(schemas[0], options.contentType));
+    } else {
+        process.stdout.write(serialize(schemas, options.contentType));
+    }
+}
+
+
+async function materialize(args) {
+    const options = argsToOptions(args);
+
+    if (_.isEmpty(args.schemaPath)) {
+        args.schemaPath.push(0);
+    }
 
     _.forEach(args.schemaPath, async (schemaFile) => {
         if (!args.outputDir && schemaFile === 0) {
-            log.fatal('Must provide --output-dir if reading schema from stdin.');
+            options.log.fatal('Must provide --output-dir if reading schema from stdin.');
             process.exit(1);
         }
 
         const schemaDirectory = args.outputDir || path.dirname(schemaFile);
 
         try {
-            log.info(`Reading schema from ${schemaFile}`);
+            options.log.info(`Reading schema from ${schemaFile}`);
             let schema = await readObject(schemaFile);
             if (!args.noDereference)  {
-                log.info(`Dereferencing schema from ${schemaFile}`);
+                options.log.info(`Dereferencing schema from ${schemaFile}`);
                 schema = await dereferenceSchema(schema);
             }
             await materializeSchemaVersion(schemaDirectory, schema, options);
         } catch (err) {
-            log.fatal(err, `Failed materializing schema from ${schemaFile} into ${schemaDirectory}.`);
+            options.log.fatal(err, `Failed materializing schema from ${schemaFile} into ${schemaDirectory}.`);
             process.exit(1);
         }
     });
 }
 
 async function materializeModified(args) {
-    const options = {
-        contentTypes: args.contentTypes,
-        schemaVersionField: args.versionField,
-        shouldSymlink: !args.noSymlink,
-        shouldDereference: !args.noDereference,
-        currentName: args.currentName,
-        gitStaged: !args.unstaged,
-        shouldGitAdd: !args.noGitAdd,
-        dryRun: args.dryRyn,
-        log: defaultOptions.log,
-    };
-    if (args.verbose) {
-        options.log.level = 'debug';
-    }
-
+    const options = argsToOptions(args);
     await materializeModifiedSchemas(args.gitRoot, options);
 }
 
@@ -173,7 +220,8 @@ const {
 
 const options = {
     contentTypes: <%= JSON.stringify(contentTypes) %>,
-    schemaVersionField: '<%= versionField %>',
+    schemaVersionField: '<%= schemaVersionField %>',
+    schemaBaseUris: <%= JSON.stringify(schemaBaseUris) %>,
     shouldSymlink: <%= !noSymlink %>,
     shouldDereference: <%= !noDereference %>,
     currentName: '<%= currentName %>',
@@ -187,6 +235,13 @@ materializeModifiedSchemas(undefined, options);
 
 async function installGitHook(args) {
     const gitRoot = args.gitRoot || await findGitRoot();
+
+    // If schemaBaseUris were not given, then assume we will look
+    // for $ref URIs starting at the git root.
+    if (_.isEmpty(args.schemaBaseUris)) {
+        args.schemaBaseUris = [gitRoot];
+    }
+
     const preCommitPath = path.join(gitRoot, '.git', 'hooks', 'pre-commit');
     const preCommitContent = preCommitTemplate(args);
 
@@ -204,11 +259,16 @@ async function installGitHook(args) {
     }
 }
 
+
+// Create the yargs parser and call the appropriate
+// function for the given subcommand.
 const argParser = yargs
     .scriptName('jsonschema-tools')
     .command(
-        'dereference [schema-path]', 'Dereference a JSONSchema.',
-        y => y.positional('schema-path', schemaPathArg),
+        'dereference [schema-path...]', 'Dereference a JSONSchema.',
+        y => y
+            .options(dereferenceOptions)
+            .positional('schema-path', schemaPathArg),
         dereference
     )
     .command(
@@ -234,6 +294,7 @@ const argParser = yargs
         'install-git-hook [git-root]', 'Installs a git pre-commit hook that will materialize modified schema files before commit.',
         y => y
             .options(commonOptions)
+            .options(dereferenceOptions)
             .options(gitOptions)
             .positional('git-root', {
                 desc: 'Local git repository root in which to install git pre-commit hook.  If not given, this will find the git root starting at the current working directory.',
@@ -242,6 +303,7 @@ const argParser = yargs
             }),
         installGitHook
     )
+    .showHelpOnFail(false, 'Specify --help for available options')
     .help();
 
 if (require.main === module) {
