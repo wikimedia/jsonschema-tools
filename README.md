@@ -1,11 +1,31 @@
 # jsonschema-tools
 
-This is a library and CLI to work with a 'repository' of versioned JSONSchemas.
-It supports
+A library and CLI to work with a repository of versioned JSONSchemas.
 
+jsonschema-tools supports
 - dereferencing of JSON Pointers (TODO)
-- Generation of semanticly named version files
-- Auto version file generation of modified 'current' versions via a git pre-commit hook
+- Generation of semanticly versioned files
+- Auto file version generation of modified 'current' versions via a git pre-commit hook
+
+# Motivation
+In a event stream based architecture, schemas define a contract between the
+disparate producers and consumers of data.  Thrift, Protocol Buffers, and Avro
+are all schema based data formats, but can be difficult to use in different
+settings.  These are binary formats, and as such the schema is requried to read the
+data.  Distributing up to data schemas to all users of the data can be difficult,
+especially when those users are in different organizations.
+
+JSON is a ubiquitous data format, but it can be difficult to work with in strongly typed systems because of its free form nature. JSONSchemas can define a contract between
+producers and consumers of data in the same way that e.g. Avro schemas do.
+However, unlike Avro, there is no built in support for evolving JSONSchemas over time.
+
+This library helps with managing a repository of evolving JSONSchemas.  It is intended
+to be used in a git repository to materialize staticly versioned schema files as
+your schema evolves.  By having all schema versions materialized as static files,
+a schema repository could be shared to clients either via git, or via a static
+http fileserver. An http fileserver on top of a git repository that contains
+predictable schema URLs can act much like Confluent's Avro schema registry,
+but with the benifits of decentralization provided by git.
 
 # Usage
 ```
@@ -32,8 +52,8 @@ Options:
 ```
 
 # Schema versions
-Schemas should be manually and semantically versioned.  By storing the schema version
-in the schema itself, you can use that schema version as you would any other
+Schemas should be manually and semantically versioned. The schema version
+should be stored in the schema itself. You can use that schema version as you would any other
 software dependency. Schemas should be easily findable by software at runtime
 in order to do validation or schema conversion to different systems (e.g. RDBMS,
 Kafka Connect, etc.). All versions should to be available.

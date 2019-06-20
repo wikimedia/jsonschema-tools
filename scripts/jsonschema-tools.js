@@ -195,7 +195,7 @@ async function installGitHook(args) {
         log.level = 'debug';
     }
 
-    log.info(`Saviing jsonschema-tools materialize-modified pre-commit hook to ${preCommitPath}`);
+    log.info(`Saving jsonschema-tools materialize-modified pre-commit hook to ${preCommitPath}`);
     if (!args.dryRun) {
         await fse.writeFile(preCommitPath, preCommitContent);
         await fse.chmod(preCommitPath, 0o755);
