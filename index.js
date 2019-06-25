@@ -10,6 +10,10 @@ const util      = require('util');
 const exec      = util.promisify(require('child_process').exec);
 const RefParser = require('json-schema-ref-parser');
 
+/**
+ * Default options for various functions in this library.
+ * Not all functions use all options, but many use some.
+ */
 const defaultOptions = {
     shouldSymlink: true,
     contentTypes: ['yaml'],
@@ -23,6 +27,71 @@ const defaultOptions = {
 };
 
 
+/**
+ * Map of contentType to serializer function.
+ */
+const serializers = {
+    'yaml': yaml.dump,
+    'json': JSON.stringify
+};
+
+
+/**
+ * Serializes the object as the given contentType, either yaml or json.
+ * @param {Object} object
+ * @param {string} contentType
+ * @return {string}
+ */
+function serialize(object, contentType = 'yaml') {
+    if (_.isUndefined(serializers[contentType])) {
+        throw new Error(
+            `No serializer for ${contentType} is defined. ` +
+            `contentType must be one of ${_.keys(serializers).join(',')}`
+        );
+    }
+    return serializers[contentType](object);
+}
+
+
+/**
+ * Reads in a yaml or json file from file
+ * @param {string|int} file string path or int file descriptor to read
+ * @return {Promise<Object>} read and parsed object
+ */
+async function readObject(file) {
+    return yaml.safeLoad(await fse.readFile(file, 'utf-8'));
+}
+
+/**
+ * Serializes object and writes to file.
+ * @param {Object} object object to serialize and write to file
+ * @param {string|int} file string path or int file descriptor to write
+ * @param {string} contentType either 'yaml' or 'json'
+ * @return {Promise} result of fse.writeFile
+ */
+function writeObject(object, file, contentType) {
+    return fse.writeFile(file, serialize(object, contentType));
+}
+
+
+/**
+ * Runs (and logs) command in cwd.
+ * @param {string} command
+ * @param {string} cwd path
+ * @param {Object} options (with options.log for logging)
+ * @return {Promise} result child_process#exec
+ */
+function execCommand(command, cwd, options = {}) {
+    _.defaults(options, defaultOptions);
+
+    if (cwd) {
+        options.log.debug(`Running: \`${command}\` in ${cwd}`);
+        return exec(command, { cwd });
+    } else {
+        options.log.debug(`Running: \`${command}\``);
+        return exec(command);
+    }
+}
 
 // https://tools.ietf.org/html/rfc3986#section-3.1
 const uriProtocolRegex = /^[a-zA-Z0-9+.-]+:\/\//;
@@ -62,7 +131,6 @@ function resolveUri(uri, baseUri) {
     }
     return url;
 }
-
 
 /**
  * Create a schema resolver wrapper for both file and http.
@@ -134,75 +202,6 @@ function createSchemaResolver(schemaBaseUris) {
     };
 }
 
-
-
-
-/**
- * Map of contentType to serializer.
- */
-const serializers = {
-    'yaml': yaml.dump,
-    'json': JSON.stringify
-};
-
-
-/**
- * Serializes the object as the given contentType, either yaml or json.
- * @param {Object} object
- * @param {string} contentType
- * @return {string}
- */
-function serialize(object, contentType = 'yaml') {
-    if (_.isUndefined(serializers[contentType])) {
-        throw new Error(
-            `No serializer for ${contentType} is defined. ` +
-            `contentType must be one of ${_.keys(serializers).join(',')}`
-        );
-    }
-    return serializers[contentType](object);
-}
-
-/**
- * Reads in a yaml or json file from file
- * @param {string|int} file string path or int file descriptor to read
- * @return {Promise<Object>} read and parsed object
- */
-async function readObject(file) {
-    return yaml.safeLoad(await fse.readFile(file, 'utf-8'));
-}
-
-/**
- * Serializes object and writes to file.
- * @param {Object} object object to serialize and write to file
- * @param {string|int} file string path or int file descriptor to write
- * @param {string} contentType either 'yaml' or 'json'
- * @return {Promise} resolves when file is written
- */
-function writeObject(object, file, contentType) {
-    return fse.writeFile(file, serialize(object, contentType));
-}
-
-
-/**
- * Runs (and logs) command in cwd.
- * @param {string} command
- * @param {string} cwd path
- * @param {Object} options (with options.log for logging)
- * @return {Promise}
- */
-function execCommand(command, cwd, options = {}) {
-    _.defaults(options, defaultOptions);
-
-    if (cwd) {
-        options.log.debug(`Running: \`${command}\` in ${cwd}`);
-        return exec(command, { cwd });
-    } else {
-        options.log.debug(`Running: \`${command}\``);
-        return exec(command);
-    }
-}
-
-
 /**
  * Returns a semantic version from a schema given a field
  * in that schema that contains the version.
@@ -247,7 +246,6 @@ async function createSymlink(targetPath, symlinkPath) {
     return fse.symlink(targetPath, symlinkPath);
 }
 
-
 /**
  * Stages paths into the git repository at gitRoot via git add.
  * @param {Array<string>} paths
@@ -282,7 +280,6 @@ async function gitModifiedSchemaPaths(gitRoot, options = {}) {
     const modifiedFiles = (await execCommand(command, gitRoot, options)).stdout.trim().split('\n');
     return _.filter(modifiedFiles, file => path.basename(file) === options.currentName);
 }
-
 
 /**
  * Uses the options.schemaBaseUris to create http and file schema resolvers
@@ -363,7 +360,6 @@ async function materializeSchemaVersion(schemaDirectory, schema, options = {}) {
 
 }
 
-
 /**
  * Finds modified 'current' schema files in gitRoot and materializes them.
  *
@@ -415,6 +411,4 @@ module.exports = {
     dereferenceSchema,
     materializeSchemaVersion,
     materializeModifiedSchemas,
-    createSchemaResolver,
 };
-

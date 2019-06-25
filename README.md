@@ -8,11 +8,11 @@ jsonschema-tools supports
 - Auto file version generation of modified 'current' versions via a git pre-commit hook
 
 # Motivation
-In a event stream based architecture, schemas define a contract between the
+In a event stream based architecture, schemas define a contract between
 disparate producers and consumers of data.  Thrift, Protocol Buffers, and Avro
 are all schema based data formats, but can be difficult to use in different
-settings.  These are binary formats, and as such the schema is requried to read the
-data.  Distributing up to data schemas to all users of the data can be difficult,
+settings.  These are binary formats, and as such the having schema is requried to
+read data.  Distributing up to data schemas to all users of the data can be difficult,
 especially when those users are in different organizations.
 
 JSON is a ubiquitous data format, but it can be difficult to work with in strongly typed systems because of its free form nature. JSONSchemas can define a contract between
@@ -53,16 +53,18 @@ Options:
 
 # Schema versions
 Schemas should be manually and semantically versioned. The schema version
-should be stored in the schema itself. You can use that schema version as you would any other
-software dependency. Schemas should be easily findable by software at runtime
-in order to do validation or schema conversion to different systems (e.g. RDBMS,
-Kafka Connect, etc.). All versions should to be available.
+should be stored in the schema itself. You can use that schema version as you would
+any other software dependency. Schemas should be easily findable by software at
+runtime in order to do validation or schema conversion to different systems
+(e.g. RDBMS, Kafka Connect, etc.).
 
 # Materializing Schemas
 Instead of manually keeping copies of each schema version, this library assists
 in auto generating schema version files from a single 'current' version file.
 This allows you to modify a single schema file, update the version field, and
 still keep the previous versions available at a static location path.
+It will also (by default) attempt to dereference any JSON `$ref` pointers
+so that the full schemas are available staticially in the materialized ones.
 
 The process of generating dereferenced and static schema version files is
 called 'materializing'.
@@ -70,7 +72,7 @@ called 'materializing'.
 `jsonschema-tools materialize-modified` is intended to be used in a checkout
 of a git repository to find 'current' schema versions that have been modified.
 This allows you to make edits to a single current schema file and change the
-version field (default: $id). Running `jsonschema-tools materialize-modified`
+version field (default: `$id`). Running `jsonschema-tools materialize-modified`
 will detect the change and output a new file named by the new schema version.
 
 # git pre-commit hook
@@ -85,5 +87,4 @@ from within your git checkout.
 
 
 # TODO:
-- dereference and $ref resolver tests
 - Schema validation given a meta schema.

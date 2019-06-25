@@ -119,6 +119,11 @@ const schemaPathArg = {
 
 
 
+/**
+ * Converts yargs parsed args to jsonsschema-tools options.
+ * @param {Object} args
+ * @return {Object}
+ */
 function argsToOptions(args) {
     const options = {};
     _.keys(args).forEach((key) => {
@@ -147,7 +152,10 @@ function argsToOptions(args) {
     return options;
 }
 
-
+/**
+ * Given yargs args, reads schemas from files and writes them to stdout.
+ * @param {Object} args 
+ */
 async function dereference(args) {
     const options = argsToOptions(args);
 
@@ -173,7 +181,10 @@ async function dereference(args) {
     }
 }
 
-
+/**
+ * Given yargs args, reads schemas from files and materializes them to version files.
+ * @param {Object} args
+ */
 async function materialize(args) {
     const options = argsToOptions(args);
 
@@ -204,12 +215,18 @@ async function materialize(args) {
     });
 }
 
+/**
+ * Looks for git modified files that match currentName and materializes them.
+ * @param {Object} args 
+ */
 async function materializeModified(args) {
     const options = argsToOptions(args);
     await materializeModifiedSchemas(args.gitRoot, options);
 }
 
-
+/**
+ * Will be rendered as a git pre-commit hook.
+ */
 const preCommitTemplate = _.template(`#!/usr/bin/env node
 'use strict';
 
@@ -233,6 +250,11 @@ const options = {
 materializeModifiedSchemas(undefined, options);
 `);
 
+/**
+ * Installs a git pre-commit hook in gitRoot that will
+ * materialize any modified files that match currentName.
+ * @param {Object} args 
+ */
 async function installGitHook(args) {
     const gitRoot = args.gitRoot || await findGitRoot();
 
