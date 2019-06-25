@@ -12,6 +12,18 @@ const {
 } = require('../index.js');
 
 
+// These are referred to in common/current.yaml as a $ref in the main properties.
+// They will be added to expected dereferenced schemas.
+const commonProperties  = {
+    $schema: {
+        type: 'string',
+        description: 'The URI identifying the jsonschema for this event. This may be just a short uri containing only the name and revision at the end of the URI path.  e.g. /schema_name/12345 is acceptable. This often will (and should) match the schema\'s $id field.\n',
+    },
+    dt: {
+        type: 'string',
+        format: 'date-time',
+    },
+};
 
 describe('materializeSchemaVersion', async function() {
     let tests = [
@@ -106,21 +118,25 @@ describe('materializeSchemaVersion', async function() {
 
     before('Loading expected schemas', async function() {
         const fixturePath = 'test/fixtures';
+        // to avoid reading the same file over and over again, save read contents.
+        const schemas = {};
+
         tests = await Promise.all(tests.map(async (test) => {
-            const expectedSchema = yaml.safeLoad(await fse.readFile(path.join(fixturePath, test.schemaPath), 'utf-8'));
+            let expectedSchema = _.get(
+                schemas,
+                test.schemaPath,
+                yaml.safeLoad(await fse.readFile(path.join(fixturePath, test.schemaPath), 'utf-8'))
+            );
+            if (_.isUndefined(schemas[test.schemaPath])) {
+                schemas[test.schemaPath] = expectedSchema;
+            }
 
             if (test.options.shouldDereference) {
                 // The only $ref in the expectedSchema is to /common/1.0.0#properties.
                 // Ensure those properties are in this version of the expected schema
                 // so we can compare it to a dereferenced one later.
-                expectedSchema.properties.$schema = {
-                    type: 'string',
-                    description: 'The URI identifying the jsonschema for this event. This may be just a short uri containing only the name and revision at the end of the URI path.  e.g. /schema_name/12345 is acceptable. This often will (and should) match the schema\'s $id field.\n',
-                };
-                expectedSchema.properties.dt = {
-                    type: 'string',
-                    format: 'date-time',
-                };
+                expectedSchema = _.cloneDeep(expectedSchema);
+                _.merge(expectedSchema.properties, commonProperties);
                 delete expectedSchema.properties.$ref;
             }
 
