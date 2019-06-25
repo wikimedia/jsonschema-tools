@@ -194,25 +194,3 @@ describe('materializeSchemaVersion', async function() {
         });
     });
 });
-
-
-// describe('materializeDereferencedSchemaVersion', function() {
-//     let fixture;
-
-//     // Use the same regular tests, but check that dereferences work.
-//     const derererenceTests = _.cloneDeep(tests);
-//     derererenceTests.forEach(t => _.set(t, 'options.shouldDereference', true));
-
-//     beforeEach('Copying fixtures to temp directory', async function() {
-//         // Copy the fixtures/ dir into a temp directory that is automatically
-//         // cleaned up after each test.
-//         fixture = testFixture();
-//         await fixture.copy();
-//     });
-
-//     it('should dereference TODO', function() {
-//         // dereferenceSchema();
-//         assert.ok(true);
-//     });
-
-// });
