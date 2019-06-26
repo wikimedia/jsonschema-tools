@@ -23,4 +23,3 @@ rules:
   computed-property-spacing: off
   comma-dangle: off
   space-before-function-paren: off
-
