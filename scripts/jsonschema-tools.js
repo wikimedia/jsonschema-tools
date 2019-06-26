@@ -155,9 +155,11 @@ function argsToOptions(args) {
 async function dereference(args) {
     const options = argsToOptions(args);
 
+    options.schemaPath = args.schemaPath;
     if (_.isEmpty(options.schemaPath)) {
-        options.schemaPath.push(0);
+        options.schemaPath = [0];
     }
+
     const schemas = await Promise.all(options.schemaPath.map(async (schemaPath) => {
         try {
             return await dereferenceSchema(await readObject(schemaPath), options);
@@ -181,9 +183,10 @@ async function dereference(args) {
 async function materialize(args) {
     const options = argsToOptions(args);
 
+    options.schemaPath = args.schemaPath;
     // Read from stdin if no schema-path was given.
-    if (_.isEmpty(options.schemaPath)) {
-        options.schemaPath.push(0);
+    if (_.isEmpty(args.schemaPath)) {
+        options.schemaPath = [0];
     }
 
     _.forEach(options.schemaPath, async (schemaFile) => {
