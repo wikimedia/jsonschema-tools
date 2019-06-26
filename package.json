@@ -1,5 +1,5 @@
 {
-  "name": "jsonschema-tools",
+  "name": "@wikimedia/jsonschema-tools",
   "version": "0.0.3",
   "description": "Utilties to help manage a repository of versioned JSONSchemas.",
   "homepage": "https://github.com/wikimedia/jsonschema-tools",
