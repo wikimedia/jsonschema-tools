@@ -27,26 +27,26 @@ function coerceArrayOption(arr) {
 }
 
 const commonOptions = {
-    'o': {
+    o: {
         alias: 'output-dir',
         desc: 'Directory in which to write materialized schema files.  If not provided, this defaults to the parent directory of the input schema file.',
         type: 'string',
         normalize: true,
     },
-    'V': {
+    V: {
         alias: 'schema-version-field',
         desc: 'Field from which to extract the schema\'s version. This will be extracted using lodash#get.',
         type: 'string',
         default: defaultOptions.schemaVersionField,
     },
-    'u': {
+    u: {
         alias: 'schema-base-uris',
         desc: 'URIs to prefix onto JSON $ref URIs when dereferencing schemas.',
         type: 'array',
         default: [],
         coerce: coerceArrayOption
     },
-    'c': {
+    c: {
         alias: 'content-types',
         desc: 'Serialization content types.',
         type: 'array',
@@ -54,24 +54,24 @@ const commonOptions = {
         choices: ['yaml', 'json'],
         coerce: coerceArrayOption
     },
-    'D': {
+    D: {
         alias: 'no-dereference',
         desc: 'If given, the materialized schema will not be dereferenced.',
         type: 'boolean',
         default: false,
     },
-    'S': {
+    S: {
         alias: 'no-symlink',
         desc: 'If given, an extensionless symlink to the materialized schema will not be created.',
         type: 'boolean',
         default: false,
     },
-    'n': {
+    n: {
         alias: 'dry-run',
         type: 'boolean',
         default: false,
     },
-    'v': {
+    v: {
         alias: 'verbose',
         type: 'boolean',
         default: false,
@@ -79,9 +79,9 @@ const commonOptions = {
 };
 
 const dereferenceOptions = {
-    'v': commonOptions.v,
-    'u': commonOptions.u,
-    'c': {
+    v: commonOptions.v,
+    u: commonOptions.u,
+    c: {
         alias: 'content-type',
         desc: 'Serialization content type.',
         type: 'string',
@@ -91,19 +91,19 @@ const dereferenceOptions = {
 };
 
 const gitOptions = {
-    'N': {
+    N: {
         alias: 'current-name',
         desc: 'Filename of modified files to look for.',
         type: 'string',
         default: 'current.yaml',
     },
-    'U': {
+    U: {
         alias: 'unstaged',
         desc: 'If given, will look for unstaged modified files instead of staged (--cached) ones.',
         type: 'boolean',
         default: false,
     },
-    'G': {
+    G: {
         alias: 'no-git-add',
         desc: 'If given, newly generated files will not be staged to git via git add.',
         type: 'boolean',
