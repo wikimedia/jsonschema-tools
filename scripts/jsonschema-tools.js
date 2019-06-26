@@ -129,17 +129,13 @@ function argsToOptions(args) {
     _.keys(args).forEach((key) => {
         if (key === 'noSymlink') {
             options.shouldSymlink = !args[key];
-        }
-        else if (key === 'noDereference') {
+        } else if (key === 'noDereference') {
             options.shouldDereference = !args[key];
-        }
-        else if (key === 'noGitAdd') {
+        } else if (key === 'noGitAdd') {
             options.shouldGitAdd = !args[key];
-        }
-        else if (key === 'unstaged') {
+        } else if (key === 'unstaged') {
             options.gitStaged = !args[key];
-        }
-        else if (_.has(defaultOptions, key)) {
+        } else if (_.has(defaultOptions, key)) {
             options[key] = args[key];
         }
     });
@@ -160,12 +156,9 @@ async function dereference(args) {
     const options = argsToOptions(args);
 
     if (_.isEmpty(options.schemaPath)) {
-        args.schemaPath.push(0);
+        options.schemaPath.push(0);
     }
-    if (args.verbose) {
-        defaultOptions.log.level = 'debug';
-    }
-    const schemas = await Promise.all(args.schemaPath.map(async (schemaPath) => {
+    const schemas = await Promise.all(options.schemaPath.map(async (schemaPath) => {
         try {
             return await dereferenceSchema(await readObject(schemaPath), options);
         } catch (err) {
@@ -218,7 +211,7 @@ async function materialize(args) {
  */
 async function materializeModified(args) {
     const options = argsToOptions(args);
-    await materializeModifiedSchemas(args.gitRoot, options);
+    await materializeModifiedSchemas(options.gitRoot, options);
 }
 
 /**
@@ -246,7 +239,9 @@ async function installGitHook(args) {
     // remove the logger from options so we don't stringify it in the template.
     const log = options.log;
     delete options.log;
-    const gitRoot = args.gitRoot || await findGitRoot();
+
+    // Find gitRoot if it isn't provided.
+    const gitRoot = options.gitRoot || await findGitRoot();
 
     // If schemaBaseUris were not given, then assume we will look
     // for $ref URIs starting at the git root.
@@ -258,7 +253,7 @@ async function installGitHook(args) {
     const preCommitContent = preCommitTemplate({ options });
 
     log.info(`Saving jsonschema-tools materialize-modified pre-commit hook to ${preCommitPath}`);
-    if (!args.dryRun) {
+    if (!options.dryRun) {
         await fse.writeFile(preCommitPath, preCommitContent);
         await fse.chmod(preCommitPath, 0o755);
     } else {
