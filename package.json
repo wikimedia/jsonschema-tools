@@ -2,7 +2,8 @@
   "name": "jsonschema-tools",
   "version": "0.0.3",
   "description": "Utilties to help manage a repository of versioned JSONSchemas.",
-  "main": "lib/jsonschema-tools.js",
+  "homepage": "https://github.com/wikimedia/jsonschema-tools",
+  "main": "index.js",
   "scripts": {
     "test": "nyc mocha && npm run lint",
     "lint": "eslint --cache --max-warnings 0 index.js test/test.js"
