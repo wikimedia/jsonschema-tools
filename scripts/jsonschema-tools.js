@@ -139,7 +139,7 @@ function argsToOptions(args) {
         else if (key === 'unstaged') {
             options.gitStaged = !args[key];
         }
-        else {
+        else if (_.has(defaultOptions, key)) {
             options[key] = args[key];
         }
     });
@@ -154,12 +154,12 @@ function argsToOptions(args) {
 
 /**
  * Given yargs args, reads schemas from files and writes them to stdout.
- * @param {Object} args 
+ * @param {Object} args
  */
 async function dereference(args) {
     const options = argsToOptions(args);
 
-    if (_.isEmpty(args.schemaPath)) {
+    if (_.isEmpty(options.schemaPath)) {
         args.schemaPath.push(0);
     }
     if (args.verbose) {
@@ -188,25 +188,22 @@ async function dereference(args) {
 async function materialize(args) {
     const options = argsToOptions(args);
 
-    if (_.isEmpty(args.schemaPath)) {
-        args.schemaPath.push(0);
+    // Read from stdin if no schema-path was given.
+    if (_.isEmpty(options.schemaPath)) {
+        options.schemaPath.push(0);
     }
 
-    _.forEach(args.schemaPath, async (schemaFile) => {
-        if (!args.outputDir && schemaFile === 0) {
+    _.forEach(options.schemaPath, async (schemaFile) => {
+        if (!options.outputDir && schemaFile === 0) {
             options.log.fatal('Must provide --output-dir if reading schema from stdin.');
             process.exit(1);
         }
 
-        const schemaDirectory = args.outputDir || path.dirname(schemaFile);
+        const schemaDirectory = options.outputDir || path.dirname(schemaFile);
 
         try {
             options.log.info(`Reading schema from ${schemaFile}`);
             let schema = await readObject(schemaFile);
-            if (!args.noDereference)  {
-                options.log.info(`Dereferencing schema from ${schemaFile}`);
-                schema = await dereferenceSchema(schema);
-            }
             await materializeSchemaVersion(schemaDirectory, schema, options);
         } catch (err) {
             options.log.fatal(err, `Failed materializing schema from ${schemaFile} into ${schemaDirectory}.`);
@@ -216,8 +213,8 @@ async function materialize(args) {
 }
 
 /**
- * Looks for git modified files that match currentName and materializes them.
- * @param {Object} args 
+ * Looks for git modified files that match currentName and materializes them.
+ * @param {Object} args
  */
 async function materializeModified(args) {
     const options = argsToOptions(args);
@@ -226,7 +223,7 @@ async function materializeModified(args) {
 
 /**
  * Will be rendered as a git pre-commit hook.
- */
+*/
 const preCommitTemplate = _.template(`#!/usr/bin/env node
 'use strict';
 
@@ -234,18 +231,7 @@ const {
     materializeModifiedSchemas,
 } = require('jsonschema-tools');
 
-
-const options = {
-    contentTypes: <%= JSON.stringify(contentTypes) %>,
-    schemaVersionField: '<%= schemaVersionField %>',
-    schemaBaseUris: <%= JSON.stringify(schemaBaseUris) %>,
-    shouldSymlink: <%= !noSymlink %>,
-    shouldDereference: <%= !noDereference %>,
-    currentName: '<%= currentName %>',
-    gitStaged: <%= !unstaged %>,
-    shouldGitAdd: <%= !noGitAdd %>,
-    dryRun: <%= dryRun %>,
-};
+const options = <%= JSON.stringify(options, null, 4) %>
 
 materializeModifiedSchemas(undefined, options);
 `);
@@ -253,24 +239,23 @@ materializeModifiedSchemas(undefined, options);
 /**
  * Installs a git pre-commit hook in gitRoot that will
  * materialize any modified files that match currentName.
- * @param {Object} args 
+ * @param {Object} args
  */
 async function installGitHook(args) {
+    const options = argsToOptions(args);
+    // remove the logger from options so we don't stringify it in the template.
+    const log = options.log;
+    delete options.log;
     const gitRoot = args.gitRoot || await findGitRoot();
 
     // If schemaBaseUris were not given, then assume we will look
     // for $ref URIs starting at the git root.
-    if (_.isEmpty(args.schemaBaseUris)) {
-        args.schemaBaseUris = [gitRoot];
+    if (_.isEmpty(options.schemaBaseUris)) {
+        options.schemaBaseUris = [gitRoot];
     }
 
     const preCommitPath = path.join(gitRoot, '.git', 'hooks', 'pre-commit');
-    const preCommitContent = preCommitTemplate(args);
-
-    const log = defaultOptions.log;
-    if (args.verbose) {
-        log.level = 'debug';
-    }
+    const preCommitContent = preCommitTemplate({ options });
 
     log.info(`Saving jsonschema-tools materialize-modified pre-commit hook to ${preCommitPath}`);
     if (!args.dryRun) {

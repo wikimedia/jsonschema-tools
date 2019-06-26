@@ -31,8 +31,8 @@ const defaultOptions = {
  * Map of contentType to serializer function.
  */
 const serializers = {
-    'yaml': yaml.dump,
-    'json': JSON.stringify
+    yaml: yaml.dump,
+    json: JSON.stringify
 };
 
 

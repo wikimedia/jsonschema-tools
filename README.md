@@ -29,8 +29,7 @@ but with the benifits of decentralization provided by git.
 
 # Usage
 ```
-$ npm install jsonschema-tools
-$ PATH=$PATH:$(pwd)/node_modules/.bin
+$ npm install -g jsonschema-tools
 $ jsonschema-tools --help
 
 jsonschema-tools [command]

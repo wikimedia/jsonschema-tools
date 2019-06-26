@@ -12,19 +12,6 @@ const {
 } = require('../index.js');
 
 
-// These are referred to in common/current.yaml as a $ref in the main properties.
-// They will be added to expected dereferenced schemas.
-const commonProperties  = {
-    $schema: {
-        type: 'string',
-        description: 'The URI identifying the jsonschema for this event. This may be just a short uri containing only the name and revision at the end of the URI path.  e.g. /schema_name/12345 is acceptable. This often will (and should) match the schema\'s $id field.\n',
-    },
-    dt: {
-        type: 'string',
-        format: 'date-time',
-    },
-};
-
 describe('materializeSchemaVersion', async function() {
     let tests = [
         {
@@ -120,6 +107,11 @@ describe('materializeSchemaVersion', async function() {
         const fixturePath = 'test/fixtures';
         // to avoid reading the same file over and over again, save read contents.
         const schemas = {};
+
+        // These are referred to in basic/current.yaml as a $ref in the main properties.
+        // They will be added to expected dereferenced schemas.
+        const commonSchema = yaml.safeLoad(await fse.readFile(path.join(fixturePath, 'schemas', 'common', '1.0.0'), 'utf-8'));
+        const commonProperties = commonSchema.properties;
 
         tests = await Promise.all(tests.map(async (test) => {
             let expectedSchema = _.get(
