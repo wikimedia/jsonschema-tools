@@ -1,6 +1,6 @@
 {
   "name": "@wikimedia/jsonschema-tools",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Utilties to help manage a repository of versioned JSONSchemas.",
   "homepage": "https://github.com/wikimedia/jsonschema-tools",
   "main": "index.js",
@@ -21,16 +21,16 @@
   "author": "Andrew Otto <otto@wikimedia.org>",
   "license": "Apache-2.0",
   "dependencies": {
-    "fse": "^4.0.1",
+    "fs-extra": "^8.0.1",
     "js-yaml": "^3.13.1",
     "json-schema-ref-parser": "^7.0.1",
     "lodash": "^4.17.11",
     "pino": "^5.12.6",
+    "pino-pretty": "^3.1.0",
     "semver": "^6.1.1",
     "yargs": "^13.2.4"
   },
   "devDependencies": {
-    "pino-pretty": "^3.1.0",
     "test-fixture": "^2.4.0",
     "mocha": "^6.1.4",
     "nyc": "^13.3.0",
