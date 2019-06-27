@@ -32,7 +32,7 @@ const defaultOptions = {
  */
 const serializers = {
     yaml: yaml.dump,
-    json: JSON.stringify
+    json: (obj) => { return JSON.stringify(obj, null, 2); },
 };
 
 
