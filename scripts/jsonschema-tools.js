@@ -225,7 +225,7 @@ const preCommitTemplate = _.template(`#!/usr/bin/env node
 
 const {
     materializeModifiedSchemas,
-} = require('jsonschema-tools');
+} = require('@wikimedia/jsonschema-tools');
 
 const options = <%= JSON.stringify(options, null, 4) %>
 
