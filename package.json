@@ -18,6 +18,11 @@
     "json",
     "event"
   ],
+  "files": [
+    "index.js",
+    "scripts",
+    "test"
+  ]
   "author": "Andrew Otto <otto@wikimedia.org>",
   "license": "Apache-2.0",
   "dependencies": {
