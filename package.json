@@ -21,7 +21,8 @@
   "files": [
     "index.js",
     "scripts",
-    "test"
+    "test",
+    ".eslintrc.yml"
   ]
   "author": "Andrew Otto <otto@wikimedia.org>",
   "license": "Apache-2.0",
