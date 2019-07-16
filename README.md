@@ -75,14 +75,30 @@ version field (default: `$id`). Running `jsonschema-tools materialize-modified`
 will detect the change and output a new file named by the new schema version.
 
 # git pre-commit hook
-`jsonschema-tools install-git-hook` will a git pre-commit hook that will
-materialize modified files found during a git commit.
+`jsonschema-tools install-git-hook` will install a git pre-commit hook that will materialize modified files found during a git commit.
 
 Install jsonschema-tools as a depenendency in your schema repository (or
 globally somewhere), then run `jsonschema-tools install-git-hook` from
 your git working copy checkout.  This will install .git/hooks/pre-commit.
 pre-commit is a NodeJS script, so `require('jsonschema-tools')` must work
 from within your git checkout.
+
+## As an NPM dependency
+Alternatively, you can make jsonschema-tools an npm dependency in your
+schema git repository, and at an npm `postinstall` script to automatically
+install the jsonschema-tools pre-commit hook for any user of the repository.
+Add the following to your package.json:
+
+```json
+  "scripts": {
+    ...,
+    "postinstall": "$(npm bin)/jsonschema-tools install-git-hook -v -c yaml,json -u <relative-path-to-schemas-in-repo>"
+  },
+  "devDependencies": {
+    ...,
+    "@wikimedia/jsonschema-tools": "^0.0.7"
+  }
+```
 
 
 # TODO:
