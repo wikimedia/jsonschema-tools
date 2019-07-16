@@ -223,9 +223,13 @@ async function materializeModified(args) {
 const preCommitTemplate = _.template(`#!/usr/bin/env node
 'use strict';
 
-const {
-    materializeModifiedSchemas,
-} = require('@wikimedia/jsonschema-tools');
+let materializeModifiedSchemas;
+try {
+    materializeModifiedSchemas = require('@wikimedia/jsonschema-tools').materializeModifiedSchemas
+} catch (err) {
+    console.error('Error: NPM dependency @wikimedia/jsonschema-tools is not available. Please install or remove this pre-commit hook: rm ' + __filename)
+    process.exit(1);
+}
 
 const options = <%= JSON.stringify(options, null, 4) %>
 
