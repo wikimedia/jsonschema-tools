@@ -9,6 +9,7 @@ const pino      = require('pino');
 const util      = require('util');
 const exec      = util.promisify(require('child_process').exec);
 const RefParser = require('json-schema-ref-parser');
+const Promise   = require('bluebird');
 
 /**
  * Default options for various functions in this library.
@@ -59,7 +60,7 @@ function serialize(object, contentType = 'yaml') {
  * @return {Promise<Object>} read and parsed object
  */
 async function readObject(file) {
-    return yaml.safeLoad(await fse.readFile(file, 'utf-8'));
+    return yaml.safeLoad(await fse.readFile(file, 'utf-8'), {filename: file});
 }
 
 /**
@@ -300,7 +301,11 @@ async function dereferenceSchema(schema, options = {}) {
             http: schemaResolver,
         }
     };
-    return await RefParser.dereference(schema, refParserOptions);
+    return RefParser.dereference(schema, refParserOptions)
+        .catch((err) => {
+            options.log.error(err, `Failed dereferencing schema with $id ${schema.$id}`, schema);
+            throw err;
+        });
 }
 
 /**
@@ -318,7 +323,7 @@ async function materializeSchemaVersion(schemaDirectory, schema, options = {}) {
     const version = schemaVersion(schema, options.schemaVersionField);
 
     if (options.shouldDereference) {
-        options.log.debug('Dereferencing schema');
+        options.log.debug(`Dereferencing schema with $id ${schema.$id}`);
         schema = await dereferenceSchema(schema, options);
     }
 
@@ -378,9 +383,16 @@ async function materializeModifiedSchemas(gitRoot = undefined, options = {}) {
         options.log.info('No modfiied schema paths were found.');
         return [];
     } else {
-        const generatedFiles = _.flatten(await Promise.all(schemaPaths.map(async (schemaPath) => {
+        // There's no good way to know of $ref dependency order, but a good guess
+        // is to render those with a shorter directory hierarchy first.
+        const sortedSchemaPaths = schemaPaths.sort((p1, p2) => {
+            return p1.split('/').length - p2.split('/').length;
+        });
+
+        const generatedFiles = _.flatten(await Promise.mapSeries(sortedSchemaPaths, (async (schemaPath) => {
             const schemaFile = path.resolve(gitRoot, schemaPath);
             const schemaDirectory = path.dirname(schemaFile);
+            options.log.info(`Materializing ${schemaFile}...`)
             const schema = await readObject(schemaFile);
             return materializeSchemaVersion(
                 schemaDirectory,

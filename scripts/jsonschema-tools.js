@@ -143,6 +143,7 @@ function argsToOptions(args) {
     options.log = defaultOptions.log;
     if (args.verbose) {
         options.log.level = 'debug';
+        options.verbose = args.verbose;
     }
 
     return options;
@@ -223,17 +224,26 @@ async function materializeModified(args) {
 const preCommitTemplate = _.template(`#!/usr/bin/env node
 'use strict';
 
-let materializeModifiedSchemas;
+let jsonschemaTools;
 try {
-    materializeModifiedSchemas = require('@wikimedia/jsonschema-tools').materializeModifiedSchemas
+    jsonschemaTools = require('@wikimedia/jsonschema-tools');
 } catch (err) {
-    console.error('Error: NPM dependency @wikimedia/jsonschema-tools is not available. Please install or remove this pre-commit hook: rm ' + __filename)
+    console.error('Error: NPM dependency @wikimedia/jsonschema-tools is not available. Please install or remove this pre-commit hook: rm ' + __filename, err)
     process.exit(1);
 }
+const _ = require('lodash');
 
 const options = <%= JSON.stringify(options, null, 4) %>
 
-materializeModifiedSchemas(undefined, options);
+_.defaults(options, jsonschemaTools.defaultOptions);
+if (options.verbose) {
+    options.log.level = 'debug';
+}
+
+jsonschemaTools.materializeModifiedSchemas(undefined, options).catch((err) => {
+    console.error(\`Failed materializing modified \${options.currentName} file: Aborting git commit.\`, err.message, err.stack);
+    process.exit(1)
+});
 `);
 
 /**
