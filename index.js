@@ -61,7 +61,7 @@ function serialize(object, contentType = 'yaml') {
  * @return {Promise<Object>} read and parsed object
  */
 async function readObject(file) {
-    return yaml.safeLoad(await fse.readFile(file, 'utf-8'), {filename: file});
+    return yaml.safeLoad(await fse.readFile(file, 'utf-8'), { filename: file });
 }
 
 /**
@@ -399,17 +399,19 @@ async function materializeModifiedSchemas(gitRoot = undefined, options = {}) {
             return p1.split('/').length - p2.split('/').length;
         });
 
-        const generatedFiles = _.flatten(await Promise.mapSeries(sortedSchemaPaths, (async (schemaPath) => {
-            const schemaFile = path.resolve(gitRoot, schemaPath);
-            const schemaDirectory = path.dirname(schemaFile);
-            options.log.info(`Materializing ${schemaFile}...`)
-            const schema = await readObject(schemaFile);
-            return materializeSchemaVersion(
-                schemaDirectory,
-                schema,
-                options
-            );
-        })));
+        const generatedFiles = _.flatten(
+            await Promise.mapSeries(sortedSchemaPaths, (async (schemaPath) => {
+                const schemaFile = path.resolve(gitRoot, schemaPath);
+                const schemaDirectory = path.dirname(schemaFile);
+                options.log.info(`Materializing ${schemaFile}...`);
+                const schema = await readObject(schemaFile);
+                return materializeSchemaVersion(
+                    schemaDirectory,
+                    schema,
+                    options
+                );
+            }))
+        );
 
         if (options.shouldGitAdd && !options.dryRun) {
             options.log.info(`New schema files have been generated. Adding them to git: ${generatedFiles}`);
