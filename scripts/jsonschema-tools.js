@@ -238,6 +238,8 @@ const options = <%= JSON.stringify(options, null, 4) %>
 _.defaults(options, jsonschemaTools.defaultOptions);
 if (options.verbose) {
     options.log.level = 'debug';
+} else {
+    options.log.level = 'info';
 }
 
 jsonschemaTools.materializeModifiedSchemas(undefined, options).catch((err) => {
