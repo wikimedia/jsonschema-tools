@@ -9,7 +9,7 @@ const pino       = require('pino');
 const util       = require('util');
 const exec       = util.promisify(require('child_process').exec);
 const RefParser  = require('json-schema-ref-parser');
-const mergeAllof = require('json-schema-merge-allof');
+const mergeAllOf = require('json-schema-merge-allof');
 const Promise    = require('bluebird');
 
 /**
@@ -311,7 +311,7 @@ async function dereferenceSchema(schema, options = {}) {
             options.log.debug(
                 `Merging any allOf fields in schema with $id ${dereferencedSchema.$id}`
             );
-            return mergeAllof(dereferencedSchema, { ignoreAdditionalProperties: true });
+            return mergeAllOf(dereferencedSchema, { ignoreAdditionalProperties: true });
         })
         .catch((err) => {
             options.log.error(err, `Failed dereferencing schema with $id ${schema.$id}`, schema);
