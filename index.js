@@ -1,15 +1,16 @@
 'use strict';
 
-const _         = require('lodash');
-const yaml      = require('js-yaml');
-const path      = require('path');
-const semver    = require('semver');
-const fse       = require('fs-extra');
-const pino      = require('pino');
-const util      = require('util');
-const exec      = util.promisify(require('child_process').exec);
-const RefParser = require('json-schema-ref-parser');
-const Promise   = require('bluebird');
+const _          = require('lodash');
+const yaml       = require('js-yaml');
+const path       = require('path');
+const semver     = require('semver');
+const fse        = require('fs-extra');
+const pino       = require('pino');
+const util       = require('util');
+const exec       = util.promisify(require('child_process').exec);
+const RefParser  = require('json-schema-ref-parser');
+const mergeAllof = require('json-schema-merge-allof');
+const Promise    = require('bluebird');
 
 /**
  * Default options for various functions in this library.
@@ -241,7 +242,9 @@ async function createSymlink(targetPath, symlinkPath) {
         if (err.code === 'ENOENT') {
             // no op, the file doesn't exist so we can just create a new symlink
         } else {
-            throw new Error(`File ${symlinkPath} is not writeable. Cannot create extensionless symlink.`, err);
+            throw new Error(
+                `File ${symlinkPath} is not writeable. Cannot create extensionless symlink.`, err
+            );
         }
     }
     return fse.symlink(targetPath, symlinkPath);
@@ -294,7 +297,9 @@ async function dereferenceSchema(schema, options = {}) {
     _.defaults(options, defaultOptions);
     const schemaResolver = createSchemaResolver(options.schemaBaseUris);
 
-    options.log.info(`Dereferencing schema from schema base URIs ${options.schemaBaseUris}`);
+    options.log.info(
+        `Dereferencing schema with $id ${schema.$id} using schema base URIs ${options.schemaBaseUris}`
+    );
     const refParserOptions = {
         resolve: {
             file: schemaResolver,
@@ -302,6 +307,12 @@ async function dereferenceSchema(schema, options = {}) {
         }
     };
     return RefParser.dereference(schema, refParserOptions)
+        .then((dereferencedSchema) => {
+            options.log.debug(
+                `Merging any allOf fields in schema with $id ${dereferencedSchema.$id}`
+            );
+            return mergeAllof(dereferencedSchema, { ignoreAdditionalProperties: true });
+        })
         .catch((err) => {
             options.log.error(err, `Failed dereferencing schema with $id ${schema.$id}`, schema);
             throw err;
@@ -323,7 +334,6 @@ async function materializeSchemaVersion(schemaDirectory, schema, options = {}) {
     const version = schemaVersion(schema, options.schemaVersionField);
 
     if (options.shouldDereference) {
-        options.log.debug(`Dereferencing schema with $id ${schema.$id}`);
         schema = await dereferenceSchema(schema, options);
     }
 
