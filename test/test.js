@@ -225,7 +225,6 @@ describe('materializeSchemaVersion', async function() {
             // Assert that all materialized files are what is expected.
             materializedFiles.forEach(async (materializedFile) => {
                 const materializedSchema = yaml.safeLoad(await fse.readFile(materializedFile, 'utf-8'));
-                // console.log(test.name, materializedSchema);
                 assert.deepStrictEqual(materializedSchema, test.expected.schema);
             });
         });
