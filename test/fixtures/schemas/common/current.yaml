@@ -15,3 +15,5 @@ properties:
   dt:
     type: string
     format: date-time
+required:
+  - $schema
