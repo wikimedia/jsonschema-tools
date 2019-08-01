@@ -4,6 +4,7 @@ A library and CLI to work with a repository of versioned JSONSchemas.
 
 jsonschema-tools supports
 - dereferencing of JSON Pointers
+- merging of `allOf`
 - Generation of semanticly versioned files
 - Auto file version generation of modified 'current' versions via a git pre-commit hook
 
@@ -15,7 +16,8 @@ settings.  These are binary formats, and as such the having schema is requried t
 read data.  Distributing up to data schemas to all users of the data can be difficult,
 especially when those users are in different organizations.
 
-JSON is a ubiquitous data format, but it can be difficult to work with in strongly typed systems because of its free form nature. JSONSchemas can define a contract between
+JSON is a ubiquitous data format, but it can be difficult to work with in strongly
+typed systems because of its free form nature. JSONSchemas can define a contract between
 producers and consumers of data in the same way that e.g. Avro schemas do.
 However, unlike Avro, there is no built in support for evolving JSONSchemas over time.
 
@@ -74,6 +76,117 @@ This allows you to make edits to a single current schema file and change the
 version field (default: `$id`). Running `jsonschema-tools materialize-modified`
 will detect the change and output a new file named by the new schema version.
 
+# Dereferencing: `$ref` pointers and `allOf` merge
+This library supports using anchored schema path URIs for `$ref` pointers.  By configuring
+`schema_base_uris` to local (file://) or remote (http://) base URIs for schema repositories,
+you can then set `$ref`s in your JSONSchemas to a path into those schema repositories. Also,
+this library will merge any `allOf` fields it encounters into an explicit list
+of fields.  This will allow for inclusion of 'common' schemas to avoid copy/pasting
+common fields throughout your schemas.
+
+For example:
+
+With a common schema at http://schema.repo.org/schemas/common/1.0.0
+```yaml
+title: common
+description: Common schema fields for all WMF schemas
+$id: /common/1.0.0
+$schema: https://json-schema.org/draft-07/schema#
+type: object
+properties:
+
+  $schema:
+    type: string
+    description: >
+      The URI identifying the jsonschema for this event. This should be
+      a short uri containing only the name and revision at the end of the
+      URI path.  e.g. /schema_name/1.0.0 is acceptable. This often will
+      (and should) match the schema's $id field.
+
+  dt:
+    type: string
+    format: date-time
+    maxLength: 128
+    description: Time stamp of the event, in ISO-8601 format
+
+required:
+  - $schema
+  - dt
+```
+
+And with a specific schema at /path/to/local/schemas/thing/change/current.yaml like
+```yaml
+title: thing/change
+$id: /thing/change/1.1.0
+$schema: https://json-schema.org/draft-07/schema#
+type: object
+additionalProperties: false
+# Use allOf so that common schemas are fully merged by
+# jsonschema-tools along with their required fields.
+allOf:
+    ### common fields
+  - $ref: /common/1.0.0
+    ### thing/change fields
+  - properties:
+      thing_id:
+        type: integer
+      thing_name:
+        type: string
+    required:
+      - thing_id
+```
+
+NOTE: that the path only based $ref starts with a '/'. This causes the schema
+resolver to look outside of the schema itself for the $ref.
+If a path $ref does not start with a '/', the resolver will look for an internally
+defined ref $id.  See also https://json-schema.org/understanding-json-schema/structuring.html.
+
+Absolute $ref URLs are supported, just prefix them with either file:// or http://
+
+
+Now, running
+```bash
+jsonschema-tools dereference --schema-base-uris file:///path/to/local/schemas,http://schema.repo.org/schemas /path/to/local/schemas/thing/change/current.yaml
+```
+will first search all of the schema base URIs for a the `$ref: /common/1.0.0` URL.   It will be
+found at http://schema.repo.org/schemas/common/1.0.0.  Then, the common fields from that schema
+will be merged with the specific fields listed in `allOf`, including all `required` fields.
+This will result in the following dereferenced schema:
+
+```yaml
+title: thing/change
+$id: /thing/change/1.1.0
+$schema: https://json-schema.org/draft-07/schema#
+type: object
+additionalProperties: false
+# Use allOf so that common schemas are fully merged by
+# jsonschema-tools along with their required fields.
+properties:
+  $schema:
+    type: string
+    description: >
+      The URI identifying the jsonschema for this event. This should be
+      a short uri containing only the name and revision at the end of the
+      URI path.  e.g. /schema_name/1.0.0 is acceptable. This often will
+      (and should) match the schema's $id field.
+
+  dt:
+    type: string
+    format: date-time
+    maxLength: 128
+    description: Time stamp of the event, in ISO-8601 format
+    ### common fields
+
+  thing_id:
+    type: integer
+  thing_name:
+    type: string
+required:
+  - $schema
+  - dt
+  - thing_id
+```
+
 # git pre-commit hook
 `jsonschema-tools install-git-hook` will install a git pre-commit hook that will materialize modified files found during a git commit.
 
@@ -96,7 +209,7 @@ Add the following to your package.json:
   },
   "devDependencies": {
     ...,
-    "@wikimedia/jsonschema-tools": "^0.0.7"
+    "@wikimedia/jsonschema-tools": "^0.1.0"
   }
 ```
 
