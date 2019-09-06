@@ -509,12 +509,12 @@ async function findAllSchemasInfo(schemaBasePath, options = {}) {
 function groupSchemasByTitleAndMajor(schemaInfos, options = {}) {
     _.defaults(options, defaultOptions);
 
-    const schemaListByTitle = _.groupBy(schemaInfos, schemaEntry => schemaEntry.title);
+    const schemaInfosByTitle = _.groupBy(schemaInfos, schemaEntry => schemaEntry.title);
 
     const schemaByTitleMajor = {};
-    _.keys(schemaListByTitle).forEach((title) => {
+    _.keys(schemaInfosByTitle).forEach((title) => {
         const groupByMajor = _.groupBy(
-            schemaListByTitle[title], info => semver.parse(info.version).major
+            schemaInfosByTitle[title], info => semver.parse(info.version).major
         );
         schemaByTitleMajor[title] = groupByMajor;
     });
