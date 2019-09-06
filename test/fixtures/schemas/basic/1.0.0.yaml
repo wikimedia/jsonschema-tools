@@ -1,4 +1,4 @@
-title: test/event
+title: basic
 description: Schema used for simple tests
 $id: /basic/1.0.0
 $schema: https://json-schema.org/draft-07/schema#

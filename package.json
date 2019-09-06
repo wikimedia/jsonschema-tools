@@ -1,6 +1,6 @@
 {
   "name": "@wikimedia/jsonschema-tools",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Utilties to help manage a repository of versioned JSONSchemas.",
   "homepage": "https://github.com/wikimedia/jsonschema-tools",
   "main": "index.js",
@@ -28,6 +28,7 @@
   "license": "Apache-2.0",
   "dependencies": {
     "bluebird": "^3.5.5",
+    "file": "^0.2.2",
     "fs-extra": "^8.0.1",
     "js-yaml": "^3.13.1",
     "json-schema-merge-allof": "^0.6.0",
@@ -35,6 +36,7 @@
     "lodash": "^4.17.11",
     "pino": "^5.12.6",
     "pino-pretty": "^3.1.0",
+    "recursive-readdir": "^2.2.2",
     "semver": "^6.1.1",
     "yargs": "^13.2.4"
   },

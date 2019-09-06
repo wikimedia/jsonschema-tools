@@ -1,5 +1,6 @@
 'use strict';
 
+const _ = require('lodash');
 const testFixture = require('test-fixture');
 const fse = require('fs-extra');
 const path = require('path');
@@ -8,12 +9,13 @@ const assert = require('assert');
 
 const {
     materializeSchemaVersion,
+    findSchemasByTitleAndMajor,
 } = require('../index.js');
 
 
 /* eslint camelcase: 1 */
 const expectedBasicSchema = {
-    title: 'test/event',
+    title: 'basic',
     description: 'Schema used for simple tests',
     $id: '/basic/1.2.0',
     $schema: 'https://json-schema.org/draft-07/schema#',
@@ -47,7 +49,7 @@ const expectedBasicSchema = {
 };
 
 const expectedBasicDereferencedSchema = {
-    title: 'test/event',
+    title: 'basic',
     description: 'Schema used for simple tests',
     $id: '/basic/1.2.0',
     $schema: 'https://json-schema.org/draft-07/schema#',
@@ -228,5 +230,34 @@ describe('materializeSchemaVersion', async function() {
                 assert.deepStrictEqual(materializedSchema, test.expected.schema);
             });
         });
+    });
+});
+
+
+describe('findSchemasByTitleAndMajor', async function() {
+    let fixture;
+
+    beforeEach('Copying fixtures to temp directory', async function() {
+        // Copy the fixtures/ dir into a temp directory that is automatically
+        // cleaned up after each test.
+        fixture = testFixture();
+        await fixture.copy();
+    });
+
+    it('should find schemas grouped by title and major', async function() {
+        const schemaBasePath = fixture.resolve('schemas/');
+        const schemasByTitleAndMajor = await findSchemasByTitleAndMajor(schemaBasePath);
+
+        assert.deepStrictEqual(_.keys(schemasByTitleAndMajor), ['basic', 'common']);
+        assert.deepStrictEqual(_.keys(schemasByTitleAndMajor.basic), ['1']);
+        assert.deepStrictEqual(_.keys(schemasByTitleAndMajor.common), ['1']);
+
+        const basicInfos = schemasByTitleAndMajor.basic['1'];
+        assert.deepStrictEqual(basicInfos.map(e => e.version), ['1.0.0', '1.1.0', '1.2.0']);
+        // at this point basic 1.2.0 is not materialized, there should be only one 1.2.0 verison
+        // and it shoudl have current == true.
+        const latest = _.last(basicInfos);
+        assert.strictEqual(latest.version, '1.2.0');
+        assert.strictEqual(latest.current, true);
     });
 });
