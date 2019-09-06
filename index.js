@@ -4,6 +4,7 @@ const _          = require('lodash');
 const yaml       = require('js-yaml');
 const path       = require('path');
 const semver     = require('semver');
+const readdir    = require('recursive-readdir');
 const fse        = require('fs-extra');
 const pino       = require('pino');
 const util       = require('util');
@@ -21,6 +22,7 @@ const defaultOptions = {
     contentTypes: ['yaml'],
     currentName: 'current.yaml',
     schemaVersionField: '$id',
+    schemaTitleField: 'title',
     shouldDereference: true,
     schemaBaseUris: [process.cwd()],
     dryRun: false,
@@ -171,7 +173,7 @@ function resolveUri(uri, baseUri) {
  * @return {Object}
  */
 function createSchemaResolver(schemaBaseUris) {
-    // We will use the built in resolveers for file and http once
+    // We will use the built in resolvers for file and http once
     // we transform the $ref URI prefixed with the schemaBaseUris.
     const fileResolver = require('json-schema-ref-parser/lib/resolvers/file');
     const httpResolver = require('json-schema-ref-parser/lib/resolvers/http');
@@ -426,6 +428,111 @@ async function materializeModifiedSchemas(gitRoot = undefined, options = {}) {
     }
 }
 
+/**
+ * Given a path to a schema file, this returns an object describing the schema.
+ * If the schema at schemaPath does not have a title, assume it is invalid.
+ * A schema 'info' is an object like:
+ * {
+ *  title: 'schema/title',
+ *  path: '/path/to/schema/title/1.0.0.yaml',
+ *  version: '1.0.0',
+ *  current: true, // or false if this file is not the 'current' schema file.
+ *  schema; {...}  // The schema (not dereferenced) schema object read from schemaPath.
+ * }
+ * @param {string} schemaPath path to schema file
+ * @param {Object} options
+ * @return {Object} {title, uri, version, current<boolean>, schema<Object>}
+ */
+async function schemaPathToInfo(schemaPath, options = {}) {
+    _.defaults(options, defaultOptions);
+
+    const schema = await readObject(schemaPath);
+
+    return {
+        title: _.get(schema, options.schemaTitleField, null),
+        path: schemaPath,
+        version: schemaVersion(schema, options.schemaVersionField),
+        current: path.parse(schemaPath).base === options.currentName,
+        schema,
+    };
+}
+
+/**
+ * Looks in schemaBasePath for files that look like schema files.
+ * These are either X.Y.Z.<contentType> files or currentName.<contentType>
+ * files.
+ * @param {string} schemaBasePath
+ * @param {Object} options
+ * @return {Array}
+ */
+async function findSchemaPaths(schemaBasePath, options = {}) {
+    _.defaults(options, defaultOptions);
+
+    options.log.debug(`Finding all schema files in ${schemaBasePath}`);
+
+    // Filter for what look like schema paths.
+    return  (await readdir(schemaBasePath))
+    // Map to parsed path
+    .map(schemaPath => path.parse(schemaPath))
+    // Must be one of desired output types
+    .filter(p => options.contentTypes.includes(p.ext.slice(1)))
+    // Must be either currentName or a semver.
+    .filter(p => p.base === options.currentName || semver.parse(p.name))
+    // Map back into into full path
+    .map(p => path.join(p.dir, p.base));
+}
+
+/**
+ * Looks in schemaBasePath for files that look like schema files and
+ * then maps them using schemaPathToInfo, returning an object with
+ * info and schema.
+ * @param {string} schemaBasePath
+ * @param {Object} options
+ */
+async function findAllSchemasInfo(schemaBasePath, options = {}) {
+    _.defaults(options, defaultOptions);
+
+    const schemaPaths = await findSchemaPaths(schemaBasePath, options);
+    // Map each schema path to a schema info object, including the schema itself.
+    return (await Promise.all(
+        schemaPaths.map(schemaPath => schemaPathToInfo(schemaPath, options))
+    )).sort((a, b) => semver.gt(a.version, b.version));
+}
+
+/**
+ * Given a list of schemaInfo objects, this groups them by title and major version.
+ * Schema title is extracted from the schema itself using options.schemaTitleField.
+ * @param {Object} schemaInfos
+ * @param {Object} options
+ * @return {Object}
+ */
+function groupSchemasByTitleAndMajor(schemaInfos, options = {}) {
+    _.defaults(options, defaultOptions);
+
+    const schemaInfosByTitle = _.groupBy(schemaInfos, schemaEntry => schemaEntry.title);
+
+    const schemaByTitleMajor = {};
+    _.keys(schemaInfosByTitle).forEach((title) => {
+        const groupByMajor = _.groupBy(
+            schemaInfosByTitle[title], info => semver.parse(info.version).major
+        );
+        schemaByTitleMajor[title] = groupByMajor;
+    });
+    return schemaByTitleMajor;
+}
+
+/**
+ * Finds all schemas in schemaBasePath, converts them to schema info objects,
+ * and groups them by schema title and major version
+ * @param {string} schemaBasePath
+ * @param {Object} options
+ * @return {Object}
+ */
+async function findSchemasByTitleAndMajor(schemaBasePath, options = {}) {
+    _.defaults(options, defaultOptions);
+    return groupSchemasByTitleAndMajor(await findAllSchemasInfo(schemaBasePath, options));
+}
+
 module.exports = {
     defaultOptions,
     readObject,
@@ -435,4 +542,9 @@ module.exports = {
     dereferenceSchema,
     materializeSchemaVersion,
     materializeModifiedSchemas,
+    schemaPathToInfo,
+    findSchemaPaths,
+    findAllSchemasInfo,
+    groupSchemasByTitleAndMajor,
+    findSchemasByTitleAndMajor
 };
