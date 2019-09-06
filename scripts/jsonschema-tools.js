@@ -10,6 +10,7 @@ const {
     dereferenceSchema,
     materializeSchemaVersion,
     materializeModifiedSchemas,
+    materializeAllSchemas,
     readObject,
     serialize,
     findGitRoot,
@@ -54,6 +55,12 @@ const commonOptions = {
         choices: ['yaml', 'json'],
         coerce: coerceArrayOption
     },
+    N: {
+        alias: 'current-name',
+        desc: 'Filename of \'current\' schema file.',
+        type: 'string',
+        default: 'current.yaml',
+    },
     D: {
         alias: 'no-dereference',
         desc: 'If given, the materialized schema will not be dereferenced.',
@@ -91,12 +98,6 @@ const dereferenceOptions = {
 };
 
 const gitOptions = {
-    N: {
-        alias: 'current-name',
-        desc: 'Filename of modified files to look for.',
-        type: 'string',
-        default: 'current.yaml',
-    },
     U: {
         alias: 'unstaged',
         desc: 'If given, will look for unstaged modified files instead of staged (--cached) ones.',
@@ -218,6 +219,11 @@ async function materializeModified(args) {
     await materializeModifiedSchemas(options.gitRoot, options);
 }
 
+async function materializeAll(args) {
+    const options = argsToOptions(args);
+    await materializeAllSchemas(args.schemaBasePath, options);
+}
+
 /**
  * Will be rendered as a git pre-commit hook.
 */
@@ -300,7 +306,7 @@ const argParser = yargs
         materialize
     )
     .command(
-        'materialize-modified [git-root]', 'Looks for git modified JSONSchema files and materializes them.',
+        'materialize-modified [git-root]', 'Looks for (git) modified current JSONSchema files and materializes them.',
         y => y
             .options(commonOptions)
             .options(gitOptions)
@@ -312,7 +318,19 @@ const argParser = yargs
         materializeModified
     )
     .command(
-        'install-git-hook [git-root]', 'Installs a git pre-commit hook that will materialize modified schema files before commit.',
+        'materialize-all [schema-base-path]', 'Looks for all current JSONSchema files and materializes them.',
+        y => y
+            .options(commonOptions)
+            .positional('schema-base-path', {
+                desc: 'Path in which to look for current schemas.',
+                type: 'string',
+                normalize: true,
+                default: './',
+            }),
+        materializeAll
+    )
+    .command(
+        'install-git-hook [git-root]', 'Installs a git pre-commit hook that will materialize (git) modified current schema files before commit.',
         y => y
             .options(commonOptions)
             .options(dereferenceOptions)
