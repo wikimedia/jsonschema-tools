@@ -18,8 +18,10 @@ rules:
   no-bitwise: off
   no-multi-spaces: off
   no-multiple-empty-lines: off
+  no-underscore-dangle: off
   one-var: off
   array-bracket-spacing: off
   computed-property-spacing: off
   comma-dangle: off
   space-before-function-paren: off
+  require-atomic-updates: off # TODO: FIXME!
