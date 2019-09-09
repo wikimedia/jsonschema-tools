@@ -509,8 +509,9 @@ function schemaInfoCompare(infoA, infoB) {
     const infoACommon = infoA.title.includes('common');
     const infoBCommon = infoB.title.includes('common');
     return infoACommon === infoBCommon ? 0 : (infoACommon ? -1 : 1) ||
-        // then sort by title
-        infoA.title.localeCompare(infoB.title) ||
+        // Then sort by path hierarchy depth.  Likely shorter hierarchy schemas
+        // should be rendered before others.
+        infoA.path.split('/').length - infoB.path.split('/').length ||
         // else if they are the same title, then sort by semver
         semver.compare(infoA.version, infoB.version) ||
         // if they are the same version, check current. Current should be later.
