@@ -407,7 +407,12 @@ async function materializeModifiedSchemas(gitRoot = undefined, options = {}) {
         // There's no good way to know of $ref dependency order, but a good guess
         // is to render those with a shorter directory hierarchy first.
         const sortedSchemaPaths = schemaPaths.sort((p1, p2) => {
-            return p1.split('/').length - p2.split('/').length;
+            // If common is in the path, it might/should sort before.
+            const p1Common = p1.includes('common');
+            const p2Common = p2.includes('common');
+
+            return p1Common === p2Common ? 0 : (p1Common ? -1 : 1) ||
+                p1.split('/').length - p2.split('/').length;
         });
 
         const generatedFiles = _.flatten(
@@ -487,6 +492,32 @@ function findSchemaPaths(schemaBasePath, options = {}) {
     .map(p => path.join(p.dir, p.base));
 }
 
+
+/**
+ * Compare function for schema info, used for sorting based
+ * on 'common' schema, title, semver, and 'current'.
+ * There's no good way to know of schema dependency order without
+ * building a graph, but we can at least guess with some good heuristics.
+ *
+ * @param {Object} infoA
+ * @param {Objectt} infoB
+ * @return {int}
+ */
+function schemaInfoCompare(infoA, infoB) {
+    // titles with 'common' in them should sort earlier.
+    // (If common is in the title, assume it is likely a dependency schema.)
+    const infoACommon = infoA.title.includes('common');
+    const infoBCommon = infoB.title.includes('common');
+    return infoACommon === infoBCommon ? 0 : (infoACommon ? -1 : 1) ||
+        // Then sort by path hierarchy depth.  Likely shorter hierarchy schemas
+        // should be rendered before others.
+        infoA.path.split('/').length - infoB.path.split('/').length ||
+        // else if they are the same title, then sort by semver
+        semver.compare(infoA.version, infoB.version) ||
+        // if they are the same version, check current. Current should be later.
+        infoA.current === infoB.current ? 0 : (infoB.current ? -1 : 1);
+}
+
 /**
  * Looks in schemaBasePath for files that look like schema files and
  * then maps them using schemaPathToInfo, returning an object with
@@ -501,7 +532,7 @@ function findAllSchemasInfo(schemaBasePath, options = {}) {
     const schemaPaths = findSchemaPaths(schemaBasePath, options);
     // Map each schema path to a schema info object, including the schema itself.
     return schemaPaths.map(schemaPath => schemaPathToInfo(schemaPath, options))
-    .sort((a, b) => semver.gt(a.version, b.version));
+    .sort(schemaInfoCompare);
 }
 
 /**
@@ -537,6 +568,24 @@ function findSchemasByTitleAndMajor(schemaBasePath, options = {}) {
     return groupSchemasByTitleAndMajor(findAllSchemasInfo(schemaBasePath, options));
 }
 
+/**
+ * Finds all current schema files and materializes them.
+ * @param {string} schemaBasePath
+ * @param {Object} options
+ * @return {Array} generated schema file paths
+ */
+async function materializeAllSchemas(schemaBasePath, options = {}) {
+    _.defaults(options, defaultOptions);
+    const currentSchemasInfo = (await findAllSchemasInfo(schemaBasePath, options))
+    .filter(e => e.current);
+
+    return _.flatten(await Promise.all(_.map(
+        currentSchemasInfo,
+        info => materializeSchemaVersion(path.dirname(info.path), info.schema, options)
+    )));
+}
+
+
 module.exports = {
     defaultOptions,
     readObject,
@@ -546,6 +595,7 @@ module.exports = {
     dereferenceSchema,
     materializeSchemaVersion,
     materializeModifiedSchemas,
+    materializeAllSchemas,
     schemaPathToInfo,
     findSchemaPaths,
     findAllSchemasInfo,
