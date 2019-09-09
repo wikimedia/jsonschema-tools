@@ -1,17 +1,17 @@
 'use strict';
 
-const _          = require('lodash');
-const yaml       = require('js-yaml');
-const path       = require('path');
-const semver     = require('semver');
-const readdir    = require('recursive-readdir');
-const fse        = require('fs-extra');
-const pino       = require('pino');
-const util       = require('util');
-const exec       = util.promisify(require('child_process').exec);
-const RefParser  = require('json-schema-ref-parser');
-const mergeAllOf = require('json-schema-merge-allof');
-const Promise    = require('bluebird');
+const _           = require('lodash');
+const yaml        = require('js-yaml');
+const path        = require('path');
+const semver      = require('semver');
+const readdirSync = require('recursive-readdir-sync');
+const fse         = require('fs-extra');
+const pino        = require('pino');
+const util        = require('util');
+const exec        = util.promisify(require('child_process').exec);
+const RefParser   = require('json-schema-ref-parser');
+const mergeAllOf  = require('json-schema-merge-allof');
+const Promise     = require('bluebird');
 
 /**
  * Default options for various functions in this library.
@@ -64,6 +64,15 @@ function serialize(object, contentType = 'yaml') {
  */
 async function readObject(file) {
     return yaml.safeLoad(await fse.readFile(file, 'utf-8'), { filename: file });
+}
+
+/**
+ * Synchronous version of readObject
+ * @param {string|int} file
+ * @return {Object}
+ */
+function readObjectSync(file) {
+    return yaml.safeLoad(fse.readFileSync(file, 'utf-8'), { filename: file });
 }
 
 /**
@@ -443,11 +452,9 @@ async function materializeModifiedSchemas(gitRoot = undefined, options = {}) {
  * @param {Object} options
  * @return {Object} {title, uri, version, current<boolean>, schema<Object>}
  */
-async function schemaPathToInfo(schemaPath, options = {}) {
+function schemaPathToInfo(schemaPath, options = {}) {
     _.defaults(options, defaultOptions);
-
-    const schema = await readObject(schemaPath);
-
+    const schema = readObjectSync(schemaPath);
     return {
         title: _.get(schema, options.schemaTitleField, null),
         path: schemaPath,
@@ -465,13 +472,11 @@ async function schemaPathToInfo(schemaPath, options = {}) {
  * @param {Object} options
  * @return {Array}
  */
-async function findSchemaPaths(schemaBasePath, options = {}) {
+function findSchemaPaths(schemaBasePath, options = {}) {
     _.defaults(options, defaultOptions);
-
     options.log.debug(`Finding all schema files in ${schemaBasePath}`);
-
     // Filter for what look like schema paths.
-    return  (await readdir(schemaBasePath))
+    return readdirSync(schemaBasePath)
     // Map to parsed path
     .map(schemaPath => path.parse(schemaPath))
     // Must be one of desired output types
@@ -488,15 +493,15 @@ async function findSchemaPaths(schemaBasePath, options = {}) {
  * info and schema.
  * @param {string} schemaBasePath
  * @param {Object} options
+ * @return {Object[]}
  */
-async function findAllSchemasInfo(schemaBasePath, options = {}) {
+function findAllSchemasInfo(schemaBasePath, options = {}) {
     _.defaults(options, defaultOptions);
 
-    const schemaPaths = await findSchemaPaths(schemaBasePath, options);
+    const schemaPaths = findSchemaPaths(schemaBasePath, options);
     // Map each schema path to a schema info object, including the schema itself.
-    return (await Promise.all(
-        schemaPaths.map(schemaPath => schemaPathToInfo(schemaPath, options))
-    )).sort((a, b) => semver.gt(a.version, b.version));
+    return schemaPaths.map(schemaPath => schemaPathToInfo(schemaPath, options))
+    .sort((a, b) => semver.gt(a.version, b.version));
 }
 
 /**
@@ -513,10 +518,9 @@ function groupSchemasByTitleAndMajor(schemaInfos, options = {}) {
 
     const schemaByTitleMajor = {};
     _.keys(schemaInfosByTitle).forEach((title) => {
-        const groupByMajor = _.groupBy(
+        schemaByTitleMajor[title] = _.groupBy(
             schemaInfosByTitle[title], info => semver.parse(info.version).major
         );
-        schemaByTitleMajor[title] = groupByMajor;
     });
     return schemaByTitleMajor;
 }
@@ -528,9 +532,9 @@ function groupSchemasByTitleAndMajor(schemaInfos, options = {}) {
  * @param {Object} options
  * @return {Object}
  */
-async function findSchemasByTitleAndMajor(schemaBasePath, options = {}) {
+function findSchemasByTitleAndMajor(schemaBasePath, options = {}) {
     _.defaults(options, defaultOptions);
-    return groupSchemasByTitleAndMajor(await findAllSchemasInfo(schemaBasePath, options));
+    return groupSchemasByTitleAndMajor(findAllSchemasInfo(schemaBasePath, options));
 }
 
 module.exports = {

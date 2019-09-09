@@ -9,7 +9,7 @@ const assert = require('assert');
 
 const {
     materializeSchemaVersion,
-    findSchemasByTitleAndMajor,
+    findSchemasByTitleAndMajor
 } = require('../index.js');
 
 
@@ -86,7 +86,7 @@ const expectedBasicDereferencedSchema = {
 };
 /* eslint camelcase: 0 */
 
-describe('materializeSchemaVersion', async function() {
+describe('materializeSchemaVersion', function() {
     let tests = [
         {
             name: 'should materialize new yaml version from file with symlink',
@@ -234,7 +234,7 @@ describe('materializeSchemaVersion', async function() {
 });
 
 
-describe('findSchemasByTitleAndMajor', async function() {
+describe('findSchemasByTitleAndMajor', function() {
     let fixture;
 
     beforeEach('Copying fixtures to temp directory', async function() {
@@ -244,10 +244,9 @@ describe('findSchemasByTitleAndMajor', async function() {
         await fixture.copy();
     });
 
-    it('should find schemas grouped by title and major', async function() {
+    it('should find schemas grouped by title and major', function() {
         const schemaBasePath = fixture.resolve('schemas/');
-        const schemasByTitleAndMajor = await findSchemasByTitleAndMajor(schemaBasePath);
-
+        const schemasByTitleAndMajor = findSchemasByTitleAndMajor(schemaBasePath);
         assert.deepStrictEqual(_.keys(schemasByTitleAndMajor), ['basic', 'common']);
         assert.deepStrictEqual(_.keys(schemasByTitleAndMajor.basic), ['1']);
         assert.deepStrictEqual(_.keys(schemasByTitleAndMajor.common), ['1']);
