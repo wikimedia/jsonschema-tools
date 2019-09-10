@@ -536,6 +536,30 @@ function findAllSchemasInfo(schemaBasePath, options = {}) {
 }
 
 /**
+ * Given a list of schemaInfo objects, this groups them by title.
+ * Schema title is extracted from the schema itself using options.schemaTitleField.
+ * @param {Object} schemaInfos
+ * @param {Object} options
+ * @return {Object}
+ */
+function groupSchemasByTitle(schemaInfos, options = {}) {
+    _.defaults(options, defaultOptions);
+    return  _.groupBy(schemaInfos, schemaEntry => schemaEntry.title);
+}
+
+/**
+ * Finds all schemas in schemaBasePath, converts them to schema info objects,
+ * and groups them by schema title
+ * @param {string} schemaBasePath
+ * @param {Object} options
+ * @return {Object}
+ */
+function findSchemasByTitle(schemaBasePath, options = {}) {
+    _.defaults(options, defaultOptions);
+    return groupSchemasByTitle(findAllSchemasInfo(schemaBasePath, options));
+}
+
+/**
  * Given a list of schemaInfo objects, this groups them by title and major version.
  * Schema title is extracted from the schema itself using options.schemaTitleField.
  * @param {Object} schemaInfos
@@ -545,7 +569,7 @@ function findAllSchemasInfo(schemaBasePath, options = {}) {
 function groupSchemasByTitleAndMajor(schemaInfos, options = {}) {
     _.defaults(options, defaultOptions);
 
-    const schemaInfosByTitle = _.groupBy(schemaInfos, schemaEntry => schemaEntry.title);
+    const schemaInfosByTitle = groupSchemasByTitle(schemaInfos, options);
 
     const schemaByTitleMajor = {};
     _.keys(schemaInfosByTitle).forEach((title) => {
@@ -599,6 +623,6 @@ module.exports = {
     schemaPathToInfo,
     findSchemaPaths,
     findAllSchemasInfo,
-    groupSchemasByTitleAndMajor,
+    findSchemasByTitle,
     findSchemasByTitleAndMajor
 };
