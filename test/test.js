@@ -10,7 +10,9 @@ const assert = require('assert');
 const {
     materializeSchemaVersion,
     findSchemasByTitleAndMajor,
-    readConfig
+    readConfig,
+    materializeAllSchemas,
+    declareTests
 } = require('../index.js');
 
 
@@ -290,5 +292,30 @@ describe('readConfig', function() {
         assert.deepEqual(options.contentTypes, ['yaml', 'json']); // overridden by config2
         assert.strictEqual(options.shouldDereference, false); // overridden by config1
         assert.strictEqual(options.schemaTitleField, 'title'); // defaultOptions
+    });
+});
+
+
+
+describe('Test Schema Repository Tests', function() {
+    let fixture;
+
+    before('Copying fixtures to temp directory', async function() {
+        // Copy the fixtures/ dir into a temp directory that is automatically
+        // cleaned up after each test.
+        fixture = testFixture();
+        await fixture.copy();
+    });
+
+    it('Should run all repository tests on schema repository using provided config options', async function() {
+        const options = readConfig({
+            schemaBasePath: fixture.resolve('schemas/'),
+            contentTypes: ['yaml'],
+        }, true);
+
+        // basic/current is at 1.2.0, which is not yet materialized in fixture.
+        // Materialize all so declareTests will pass.
+        await materializeAllSchemas(options);
+        declareTests(options);
     });
 });
