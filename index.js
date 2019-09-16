@@ -18,16 +18,71 @@ const Promise     = require('bluebird');
  * Not all functions use all options, but many use some.
  */
 const defaultOptions = {
+    /**
+     * If true, materialize functions will symlink an extensionless versioned file
+     * to the version.contentTypes[0].  E.g. if contentTypes has 'yaml' as the first
+     * entry, then 1.0.0 -> 1.0.0.yaml.
+     */
     shouldSymlink: true,
-    contentTypes: ['yaml'],
+    /**
+     * List of content types to output when materializing versioned schema files.
+     */
+    contentTypes: ['yaml', 'json'],
+    /**
+     * Name of 'current' schema file. Only these files will be considered
+     * when materializing modified or 'all' schema files.
+     */
     currentName: 'current.yaml',
+    /**
+     * Field in schema from which to extract the version using semver.coerce.
+     */
     schemaVersionField: '$id',
+    /**
+     * Field in schema from which to extract the schema title.
+     */
     schemaTitleField: 'title',
+    /**
+     * If true, materialize functions will first dereference schemas before outputting them.
+     */
     shouldDereference: true,
-    schemaBaseUris: [process.cwd()],
+    /**
+     * Path in which (current) schemas will be looked for.
+     */
+    schemaBasePath: process.cwd(),
+    /**
+     * These are the URIs that will be used when resolving schemas.
+     * If not set, the readConfig function will set this to [schemaBasePath]
+     */
+    schemaBaseUris: undefined,
+    /**
+     * If true, don't actually modify anything, just log what would have been done.
+     */
     dryRun: false,
-    gitStaged: true,
+    /**
+     * If true, only git staged current schema files will be considered by materializeModified.
+     * If false, only unstaged current schema files will be considerd by materializeModified.
+     */
+    gitStaged: false,
+    /**
+     * If true, materializeModified will `git add` any versioned schema files it materializes.
+     */
+    shouldGitAdd: true,
+    /**
+     * Pino logger.
+     */
     log: pino({ level: 'warn', prettyPrint: true }),
+    /**
+     * special case option to ease setting log level to
+     * debug from CLI (where pino is not easily configurable).
+     * Pino's log.level will be set to this by the readConfig function.
+     */
+    logLevel: 'warn',
+    /**
+     * Array of default config files from which custom
+     * options will be read by readConfig.
+     * The keys in these config files are the same as these defaultOtions keys.
+     */
+    configPaths: ['./.jsonschema-tools.yaml'],
 };
 
 
@@ -38,7 +93,6 @@ const serializers = {
     yaml: yaml.dump,
     json: (obj) => { return JSON.stringify(obj, null, 2); },
 };
-
 
 /**
  * Serializes the object as the given contentType, either yaml or json.
@@ -55,7 +109,6 @@ function serialize(object, contentType = 'yaml') {
     }
     return serializers[contentType](object);
 }
-
 
 /**
  * Reads in a yaml or json file from file
@@ -86,22 +139,76 @@ function writeObject(object, file, contentType) {
     return fse.writeFile(file, serialize(object, contentType));
 }
 
+let configHasBeenRead = false;
+/**
+ * Loads jsonschema-tools config file(s) and returns merged options
+ * with defaultOptions object.  If config files have already been read
+ * once by this process, this will just return options as is.
+ * Set force=true to override this to always read config files.
+ * If force=false, it is expected that the options passed in here
+ * have already been set by a previous call to readConfig.
+ * I.e. no global config state is kept, it should just be passed around.
+ * @param {Object} options
+ *  options.configPaths must be a list of config file
+ *  paths from which to read configs.  Default: ['.jsonschema-tools.yaml']
+ * @param {boolean} force Force read configPaths even if readConfig has been called once.
+ * @return {Object} of read in and merged options.
+ */
+function readConfig(options = {}, force = false) {
+    if (configHasBeenRead && !force) {
+        return options;
+    }
+
+    // Use defaultOptions.configPaths only if options.configPaths is undefined.
+    // This allows users to disable configPath reading it by setting options.configPaths to false.
+    const configPaths = _.isUndefined(options.configPaths) ?
+        defaultOptions.configPaths : options.configPaths;
+    const finalOptions = configPaths.map((p) => {
+        if (fse.existsSync(p)) {
+            return readObjectSync(p);
+        } else {
+            return {};
+        }
+    })
+    // append our custom options at the end of the list of
+    // config file options so that they take precedence.
+    .concat(options)
+    .reduce((currentOptions, incomingConfig) => {
+        return _.defaults(incomingConfig, currentOptions);
+    }, defaultOptions);
+
+    // Set pino's log level from finalOptions.log_level.
+    // This helps when setting log level from configs or from CLI
+    // where pino object is not itself configurable.
+    finalOptions.log.level = finalOptions.logLevel;
+
+    // If schemaBaseUris hasn't been set, then set it to use schemaBasePath
+    finalOptions.schemaBaseUris = finalOptions.schemaBaseUris || [finalOptions.schemaBasePath];
+
+    // Don't need to read in config files again if readConfig is called next time.
+    configHasBeenRead = true;
+
+    finalOptions.log.debug(`Finished reading jsonschema-tools config from files: ${configPaths.join(',')}`);
+    return finalOptions;
+}
 
 /**
  * Runs (and logs) command in cwd.
  * @param {string} command
- * @param {string} cwd path
- * @param {Object} options (with options.log for logging)
+ * @param {string} execOptions options to pass to child_process.exec
+ * @param {Object} logger If given, will call logger.debug(command) before executing it.
  * @return {Promise} result child_process#exec
  */
-function execCommand(command, cwd, options = {}) {
-    _.defaults(options, defaultOptions);
-
-    if (cwd) {
-        options.log.debug(`Running: \`${command}\` in ${cwd}`);
-        return exec(command, { cwd });
+function execCommand(command, execOptions, logger) {
+    if (execOptions) {
+        if (logger) {
+            logger.debug(`Running: \`${command}\` with `, execOptions);
+        }
+        return exec(command, execOptions);
     } else {
-        options.log.debug(`Running: \`${command}\``);
+        if (logger) {
+            logger.debug(`Running: \`${command}\``);
+        }
         return exec(command);
     }
 }
@@ -262,38 +369,49 @@ async function createSymlink(targetPath, symlinkPath) {
 }
 
 /**
+ * Finds the git root path relative to options.schemaBasePath
+ * @param {Object} options
+ * @return {string}
+ */
+async function findGitRoot(options = {}) {
+    options = readConfig(options);
+    return (await execCommand(
+        // Need to execute the git command in the schemaBasePath for it to find the
+        // .git directory somewhere above schemaBasePath
+        'git rev-parse --show-toplevel', { cwd: options.schemaBasePath }, options.log
+    )).stdout.trim();
+}
+
+/**
  * Stages paths into the git repository at gitRoot via git add.
  * @param {Array<string>} paths
- * @param {string} gitRoot
  * @param {Object} options
  * @return {Object}
  */
-function gitAdd(paths, gitRoot, options = {}) {
-    _.defaults(options, defaultOptions);
+async function gitAdd(paths, options = {}) {
+    options = readConfig(options);
     const command = `git add ${paths.join(' ')}`;
-    return execCommand(command, gitRoot, options);
+    return execCommand(command, { cwd: options.schemaBasePath }, options.log);
 }
 
 /**
- * Finds the git root path relative to the current working directory.
- * @return {string}
- */
-async function findGitRoot() {
-    return (await execCommand('git rev-parse --show-toplevel')).stdout.trim();
-}
-
-/**
- * Finds modified paths in gitRoot.  If options.gitStaged, this will look for
- * modified staged files.  Else this will look ifor modified files in the working directory.
- * @param {string} gitRoot
+ * Finds modified paths in options.schemaBasePath.  If options.gitStaged, this will look for
+ * modified staged files.  Else this will look for unstaged modified files.
+ * File paths will be returned as absolute paths resolved relative to the
+ * discovered git root of options.schemaBasePath.
  * @param {Object} options
  * @return {Array<string>}
  */
-async function gitModifiedSchemaPaths(gitRoot, options = {}) {
-    _.defaults(options, defaultOptions);
+async function gitModifiedSchemaPaths(options = {}) {
+    options = readConfig(options);
+    const gitRoot = await findGitRoot(options);
+    const execOptions = { cwd: options.schemaBasePath };
+
     const command = `git diff ${options.gitStaged ? '--cached' : ''} --name-only --diff-filter=ACM`;
-    const modifiedFiles = (await execCommand(command, gitRoot, options)).stdout.trim().split('\n');
-    return _.filter(modifiedFiles, file => path.basename(file) === options.currentName);
+
+    const modifiedFiles = (await execCommand(command, execOptions, options.log)).stdout.trim().split('\n');
+    return _.filter(modifiedFiles, file => path.basename(file) === options.currentName)
+        .map(file => path.resolve(gitRoot, file));
 }
 
 /**
@@ -305,7 +423,7 @@ async function gitModifiedSchemaPaths(gitRoot, options = {}) {
  * @return {Promise<Object>} dereferenced schema
  */
 async function dereferenceSchema(schema, options = {}) {
-    _.defaults(options, defaultOptions);
+    options = readConfig(options);
     const schemaResolver = createSchemaResolver(options.schemaBaseUris);
 
     options.log.info(
@@ -336,10 +454,10 @@ async function dereferenceSchema(schema, options = {}) {
  * @param {string} schemaDirectory directory in which to materialize schema
  * @param {Object} schema Schema to materialize
  * @param {Object} options
- * @return {Promise<string>} path of newly generated files
+ * @return {Promise<string>} path of newly materialized files
  */
 async function materializeSchemaVersion(schemaDirectory, schema, options = {}) {
-    _.defaults(options, defaultOptions);
+    options = readConfig(options);
     const log = options.log;
 
     const version = schemaVersion(schema, options.schemaVersionField);
@@ -348,10 +466,8 @@ async function materializeSchemaVersion(schemaDirectory, schema, options = {}) {
         schema = await dereferenceSchema(schema, options);
     }
 
-    // TODO if shouldValidate against meta schema, do so here.
-
     return _.flatten(await Promise.all(options.contentTypes.map(async (contentType) => {
-        let generatedFiles = [];
+        let materializedFiles = [];
         const materializedSchemaPath = path.join(
             schemaDirectory, `${version}.${contentType}`
         );
@@ -359,7 +475,7 @@ async function materializeSchemaVersion(schemaDirectory, schema, options = {}) {
         if (!options.dryRun) {
             await writeObject(schema, materializedSchemaPath, contentType);
             log.info(`Materialized schema at ${materializedSchemaPath}.`);
-            generatedFiles.push(materializedSchemaPath);
+            materializedFiles.push(materializedSchemaPath);
         } else {
             log.info(`--dry-run: Would have materialized schema at ${materializedSchemaPath}.`);
         }
@@ -373,7 +489,7 @@ async function materializeSchemaVersion(schemaDirectory, schema, options = {}) {
                 log.info(
                     `Created extensionless symlink ${symlinkPath} -> ${target}.`
                 );
-                generatedFiles.push(symlinkPath);
+                materializedFiles.push(symlinkPath);
             } else {
                 log.info(
                     `--dry-run: Would have created extensionless symlink ${symlinkPath} to ${target}.`
@@ -381,27 +497,25 @@ async function materializeSchemaVersion(schemaDirectory, schema, options = {}) {
             }
         }
 
-        return generatedFiles;
+        return materializedFiles;
     })));
 
 }
 
 /**
- * Finds modified 'current' schema files in gitRoot and materializes them.
+ * Finds modified 'current' schema files in options.schemaBasePath and materializes them.
  *
- * @param {string} gitRoot If not given, this will be discovered by calling findGitRoot.
  * @param {Object} options
  * @return {Promise<Array<string>>} List of files that were generated
  */
-async function materializeModifiedSchemas(gitRoot = undefined, options = {}) {
-    _.defaults(options, defaultOptions);
+async function materializeModifiedSchemas(options = {}) {
+    options = readConfig(options);
 
-    gitRoot = gitRoot || await findGitRoot();
-    options.log.info(`Looking for modified schema files in ${gitRoot}`);
-    const schemaPaths = await gitModifiedSchemaPaths(gitRoot, options);
+    options.log.info(`Looking for modified ${options.currentName} schema files in ${options.schemaBasePath}`);
+    const schemaPaths = await gitModifiedSchemaPaths(options);
 
     if (_.isEmpty(schemaPaths)) {
-        options.log.info('No modfiied schema paths were found.');
+        options.log.info(`No modified ${options.currentName} schema files were found.`);
         return [];
     } else {
         // There's no good way to know of $ref dependency order, but a good guess
@@ -417,10 +531,9 @@ async function materializeModifiedSchemas(gitRoot = undefined, options = {}) {
 
         const generatedFiles = _.flatten(
             await Promise.mapSeries(sortedSchemaPaths, (async (schemaPath) => {
-                const schemaFile = path.resolve(gitRoot, schemaPath);
-                const schemaDirectory = path.dirname(schemaFile);
-                options.log.info(`Materializing ${schemaFile}...`);
-                const schema = await readObject(schemaFile);
+                const schemaDirectory = path.dirname(schemaPath);
+                options.log.info(`Materializing ${schemaPath}...`);
+                const schema = await readObject(schemaPath);
                 return materializeSchemaVersion(
                     schemaDirectory,
                     schema,
@@ -430,15 +543,40 @@ async function materializeModifiedSchemas(gitRoot = undefined, options = {}) {
         );
 
         if (options.shouldGitAdd && !options.dryRun) {
-            options.log.info(`New schema files have been generated. Adding them to git: ${generatedFiles}`);
+            options.log.info(`New schema files have been materialized. Adding them to git: ${generatedFiles}`);
             try {
-                await gitAdd(generatedFiles, gitRoot, options);
+                await gitAdd(generatedFiles, options);
             } catch (err) {
-                options.log.error(err, 'Failed git add of new schema files.');
+                options.log.error(err, 'Failed git add of newly materialized schema files.');
                 throw err;
             }
         }
         return generatedFiles;
+    }
+}
+
+const preCommitContent = `
+#!/bin/bash
+# unset GIT_DIR so jsonschema-tools can find the git root itself.
+unset GIT_DIR
+
+# Run materalize-modified looking for staged current schema files to materialize.
+# This will pick up any config options from the .jsonschema-tools.yaml
+$(npm bin)/jsonschema-tools materialize-modified --staged
+`;
+
+async function installGitHook(options) {
+    options = readConfig(options);
+    // Find gitRoot if it isn't provided.
+    const gitRoot = options.gitRoot || await findGitRoot(options);
+    const preCommitPath = path.join(gitRoot, '.git', 'hooks', 'pre-commit');
+
+    options.log.info(`Saving jsonschema-tools materialize-modified pre-commit hook to ${preCommitPath}`);
+    if (!options.dryRun) {
+        await fse.writeFile(preCommitPath, preCommitContent);
+        await fse.chmod(preCommitPath, 0o755);
+    } else {
+        options.log.info('--dry-run: Not installing pre-commit hook.');
     }
 }
 
@@ -458,7 +596,7 @@ async function materializeModifiedSchemas(gitRoot = undefined, options = {}) {
  * @return {Object} {title, uri, version, current<boolean>, schema<Object>}
  */
 function schemaPathToInfo(schemaPath, options = {}) {
-    _.defaults(options, defaultOptions);
+    options = readConfig(options);
     const schema = readObjectSync(schemaPath);
     return {
         title: _.get(schema, options.schemaTitleField, null),
@@ -478,7 +616,7 @@ function schemaPathToInfo(schemaPath, options = {}) {
  * @return {Array}
  */
 function findSchemaPaths(schemaBasePath, options = {}) {
-    _.defaults(options, defaultOptions);
+    options = readConfig(options);
     options.log.debug(`Finding all schema files in ${schemaBasePath}`);
     // Filter for what look like schema paths.
     return readdirSync(schemaBasePath)
@@ -527,7 +665,7 @@ function schemaInfoCompare(infoA, infoB) {
  * @return {Object[]}
  */
 function findAllSchemasInfo(schemaBasePath, options = {}) {
-    _.defaults(options, defaultOptions);
+    options = readConfig(options);
 
     const schemaPaths = findSchemaPaths(schemaBasePath, options);
     // Map each schema path to a schema info object, including the schema itself.
@@ -537,14 +675,12 @@ function findAllSchemasInfo(schemaBasePath, options = {}) {
 
 /**
  * Given a list of schemaInfo objects, this groups them by title.
- * Schema title is extracted from the schema itself using options.schemaTitleField.
  * @param {Object} schemaInfos
  * @param {Object} options
  * @return {Object}
  */
-function groupSchemasByTitle(schemaInfos, options = {}) {
-    _.defaults(options, defaultOptions);
-    return  _.groupBy(schemaInfos, schemaEntry => schemaEntry.title);
+function groupSchemasByTitle(schemaInfos) {
+    return  _.groupBy(schemaInfos, schemaInfo => schemaInfo.title);
 }
 
 /**
@@ -555,21 +691,18 @@ function groupSchemasByTitle(schemaInfos, options = {}) {
  * @return {Object}
  */
 function findSchemasByTitle(schemaBasePath, options = {}) {
-    _.defaults(options, defaultOptions);
+    options = readConfig(options);
     return groupSchemasByTitle(findAllSchemasInfo(schemaBasePath, options));
 }
 
 /**
  * Given a list of schemaInfo objects, this groups them by title and major version.
- * Schema title is extracted from the schema itself using options.schemaTitleField.
+ *
  * @param {Object} schemaInfos
- * @param {Object} options
  * @return {Object}
  */
-function groupSchemasByTitleAndMajor(schemaInfos, options = {}) {
-    _.defaults(options, defaultOptions);
-
-    const schemaInfosByTitle = groupSchemasByTitle(schemaInfos, options);
+function groupSchemasByTitleAndMajor(schemaInfos) {
+    const schemaInfosByTitle = groupSchemasByTitle(schemaInfos);
 
     const schemaByTitleMajor = {};
     _.keys(schemaInfosByTitle).forEach((title) => {
@@ -588,7 +721,7 @@ function groupSchemasByTitleAndMajor(schemaInfos, options = {}) {
  * @return {Object}
  */
 function findSchemasByTitleAndMajor(schemaBasePath, options = {}) {
-    _.defaults(options, defaultOptions);
+    options = readConfig(options);
     return groupSchemasByTitleAndMajor(findAllSchemasInfo(schemaBasePath, options));
 }
 
@@ -599,7 +732,7 @@ function findSchemasByTitleAndMajor(schemaBasePath, options = {}) {
  * @return {Array} generated schema file paths
  */
 async function materializeAllSchemas(schemaBasePath, options = {}) {
-    _.defaults(options, defaultOptions);
+    options = readConfig(options);
     const currentSchemasInfo = (await findAllSchemasInfo(schemaBasePath, options))
     .filter(e => e.current);
 
@@ -614,8 +747,9 @@ module.exports = {
     defaultOptions,
     readObject,
     serialize,
+    readConfig,
     gitAdd,
-    findGitRoot,
+    installGitHook,
     dereferenceSchema,
     materializeSchemaVersion,
     materializeModifiedSchemas,

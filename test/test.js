@@ -9,7 +9,8 @@ const assert = require('assert');
 
 const {
     materializeSchemaVersion,
-    findSchemasByTitleAndMajor
+    findSchemasByTitleAndMajor,
+    readConfig
 } = require('../index.js');
 
 
@@ -192,6 +193,7 @@ describe('materializeSchemaVersion', function() {
         // set proper schemaBaseUris to temp fixture path
         tests = await Promise.all(tests.map(async (test) => {
             test.options.schemaBaseUris = [fixture.resolve('schemas/')];
+            test.options = readConfig(test.options, true);
             return test;
         }));
     });
@@ -245,8 +247,10 @@ describe('findSchemasByTitleAndMajor', function() {
     });
 
     it('should find schemas grouped by title and major', function() {
+        // Force re-reading of (default) config options.
+        const options = readConfig({}, true);
         const schemaBasePath = fixture.resolve('schemas/');
-        const schemasByTitleAndMajor = findSchemasByTitleAndMajor(schemaBasePath);
+        const schemasByTitleAndMajor = findSchemasByTitleAndMajor(schemaBasePath, options);
         assert.deepStrictEqual(_.keys(schemasByTitleAndMajor), ['basic', 'common']);
         assert.deepStrictEqual(_.keys(schemasByTitleAndMajor.basic), ['1']);
         assert.deepStrictEqual(_.keys(schemasByTitleAndMajor.common), ['1']);
@@ -258,5 +262,34 @@ describe('findSchemasByTitleAndMajor', function() {
         const latest = _.last(basicInfos);
         assert.strictEqual(latest.version, '1.2.0');
         assert.strictEqual(latest.current, true);
+    });
+});
+
+
+describe('readConfig', function() {
+    let fixture;
+
+    before('Copying fixtures to temp directory', async function() {
+        // Copy the fixtures/ dir into a temp directory that is automatically
+        // cleaned up after each test.
+        fixture = testFixture();
+        await fixture.copy();
+    });
+
+    it('should load configs from 2 files and custom options and set proper defaults', function() {
+        const customOptions = {
+            configPaths: [
+                fixture.resolve('jsonschema-tools.config1.yaml'),
+                fixture.resolve('jsonschema-tools.config2.yaml'),
+            ],
+            shouldSymlink: true
+        };
+
+        const options = readConfig(customOptions, true);
+
+        assert.strictEqual(options.shouldSymlink, true); // overridden by custom option
+        assert.deepEqual(options.contentTypes, ['yaml', 'json']); // overridden by config2
+        assert.strictEqual(options.shouldDereference, false); // overridden by config1
+        assert.strictEqual(options.schemaTitleField, 'title'); // defaultOptions
     });
 });

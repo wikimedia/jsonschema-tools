@@ -2,7 +2,6 @@
 'use strict';
 
 const _     = require('lodash');
-const fse   = require('fs-extra');
 const path  = require('path');
 const yargs = require('yargs');
 
@@ -13,7 +12,7 @@ const {
     materializeAllSchemas,
     readObject,
     serialize,
-    findGitRoot,
+    installGitHook,
     defaultOptions,
 } = require('../index.js');
 
@@ -32,26 +31,22 @@ const commonOptions = {
         alias: 'output-dir',
         desc: 'Directory in which to write materialized schema files.  If not provided, this defaults to the parent directory of the input schema file.',
         type: 'string',
-        normalize: true,
     },
     V: {
         alias: 'schema-version-field',
         desc: 'Field from which to extract the schema\'s version. This will be extracted using lodash#get.',
         type: 'string',
-        default: defaultOptions.schemaVersionField,
     },
     u: {
         alias: 'schema-base-uris',
         desc: 'URIs to prefix onto JSON $ref URIs when dereferencing schemas.',
         type: 'array',
-        default: [],
         coerce: coerceArrayOption
     },
     c: {
         alias: 'content-types',
         desc: 'Serialization content types.',
         type: 'array',
-        default: defaultOptions.contentTypes,
         choices: ['yaml', 'json'],
         coerce: coerceArrayOption
     },
@@ -59,50 +54,55 @@ const commonOptions = {
         alias: 'current-name',
         desc: 'Filename of \'current\' schema file.',
         type: 'string',
-        default: 'current.yaml',
     },
     D: {
         alias: 'no-dereference',
         desc: 'If given, the materialized schema will not be dereferenced.',
         type: 'boolean',
-        default: false,
     },
     S: {
         alias: 'no-symlink',
         desc: 'If given, an extensionless symlink to the materialized schema will not be created.',
         type: 'boolean',
-        default: false,
     },
     n: {
         alias: 'dry-run',
         type: 'boolean',
-        default: false,
     },
     v: {
         alias: 'verbose',
         type: 'boolean',
         default: false,
     },
+    C: {
+        alias: 'config-paths',
+        desc: 'YAML file paths from which to read configuration. Provided CLI options take precedence. Default: .jsonschema-tools.yaml',
+        type: 'array',
+        coerce: coerceArrayOption
+    }
 };
 
 const dereferenceOptions = {
     v: commonOptions.v,
     u: commonOptions.u,
+    // For dereference, only a single output content-type is taken, as this command
+    // output the dereferenced schema to stdout.
     c: {
         alias: 'content-type',
         desc: 'Serialization content type.',
         type: 'string',
-        default: defaultOptions.contentTypes[0],
+        default: 'yaml',
         choices: ['yaml', 'json'],
     },
+    C: commonOptions.C,
 };
 
 const gitOptions = {
-    U: {
-        alias: 'unstaged',
-        desc: 'If given, will look for unstaged modified files instead of staged (--cached) ones.',
+    s: {
+        alias: 'staged',
+        desc: 'If given, will look for staged (--cached) modified files instead of unstaged ones. ' +
+            'This is usually only used by the git pre-commit hook',
         type: 'boolean',
-        default: false,
     },
     G: {
         alias: 'no-git-add',
@@ -118,10 +118,16 @@ const schemaPathArg = {
     normalize: true,
 };
 
+const schemaBasePathArg = {
+    desc: 'Path to base directory in which schemas are stored.  Defaults to cwd.',
+    type: 'string',
+    normalize: true,
+};
+
 
 
 /**
- * Converts yargs parsed args to jsonsschema-tools options.
+ * Converts yargs parsed args to jsonschema-tools options.
  * @param {Object} args
  * @return {Object}
  */
@@ -134,8 +140,8 @@ function argsToOptions(args) {
             options.shouldDereference = !args[key];
         } else if (key === 'noGitAdd') {
             options.shouldGitAdd = !args[key];
-        } else if (key === 'unstaged') {
-            options.gitStaged = !args[key];
+        } else if (key === 'staged') {
+            options.gitStaged = args[key];
         } else if (_.has(defaultOptions, key)) {
             options[key] = args[key];
         }
@@ -143,8 +149,8 @@ function argsToOptions(args) {
 
     options.log = defaultOptions.log;
     if (args.verbose) {
-        options.log.level = 'debug';
-        options.verbose = args.verbose;
+        options.logLevel = 'debug';
+        options.log.level = options.logLevel;
     }
 
     return options;
@@ -157,23 +163,26 @@ function argsToOptions(args) {
 async function dereference(args) {
     const options = argsToOptions(args);
 
-    options.schemaPath = args.schemaPath;
-    if (_.isEmpty(options.schemaPath)) {
-        options.schemaPath = [0];
+    let schemaPaths = args.schemaPath;
+    // If not given any schema paths, read from stdin.
+    if (_.isEmpty(schemaPaths)) {
+        schemaPaths = [0];
     }
 
-    const schemas = await Promise.all(options.schemaPath.map(async (schemaPath) => {
+    const schemas = await Promise.all(schemaPaths.map(async (schemaPath) => {
         try {
             return await dereferenceSchema(await readObject(schemaPath), options);
         } catch (err) {
-            options.log.fatal(err, `Failed dereferencing schemas in ${schemaPath}`);
+            options.log.fatal(err, `Failed dereferencing schema at ${schemaPath}`);
             process.exit(1);
         }
     }));
 
     if (schemas.length === 1) {
+        // If only one schema path, just write it out it as schema object
         process.stdout.write(serialize(schemas[0], options.contentType));
     } else {
+        // Else write it out as array of schema objects.
         process.stdout.write(serialize(schemas, options.contentType));
     }
 }
@@ -185,26 +194,26 @@ async function dereference(args) {
 async function materialize(args) {
     const options = argsToOptions(args);
 
-    options.schemaPath = args.schemaPath;
+    let schemaPaths = args.schemaPath;
     // Read from stdin if no schema-path was given.
-    if (_.isEmpty(args.schemaPath)) {
-        options.schemaPath = [0];
+    if (_.isEmpty(args.schemaPaths)) {
+        schemaPaths = [0];
     }
 
-    _.forEach(options.schemaPath, async (schemaFile) => {
-        if (!options.outputDir && schemaFile === 0) {
+    _.forEach(schemaPaths, async (schemaPath) => {
+        if (!args.outputDir && schemaPath === 0) {
             options.log.fatal('Must provide --output-dir if reading schema from stdin.');
             process.exit(1);
         }
 
-        const schemaDirectory = options.outputDir || path.dirname(schemaFile);
+        const schemaDirectory = args.outputDir || path.dirname(schemaPath);
 
         try {
-            options.log.info(`Reading schema from ${schemaFile}`);
-            let schema = await readObject(schemaFile);
+            options.log.info(`Reading schema from ${schemaPath}`);
+            let schema = await readObject(schemaPath);
             await materializeSchemaVersion(schemaDirectory, schema, options);
         } catch (err) {
-            options.log.fatal(err, `Failed materializing schema from ${schemaFile} into ${schemaDirectory}.`);
+            options.log.fatal(err, `Failed materializing schema from ${schemaPath} into ${schemaDirectory}.`);
             process.exit(1);
         }
     });
@@ -216,7 +225,7 @@ async function materialize(args) {
  */
 async function materializeModified(args) {
     const options = argsToOptions(args);
-    await materializeModifiedSchemas(options.gitRoot, options);
+    await materializeModifiedSchemas(options);
 }
 
 async function materializeAll(args) {
@@ -225,65 +234,13 @@ async function materializeAll(args) {
 }
 
 /**
- * Will be rendered as a git pre-commit hook.
-*/
-const preCommitTemplate = _.template(`#!/usr/bin/env node
-'use strict';
-
-let jsonschemaTools;
-try {
-    jsonschemaTools = require('@wikimedia/jsonschema-tools');
-} catch (err) {
-    console.error('Error: NPM dependency @wikimedia/jsonschema-tools is not available. Please install or remove this pre-commit hook: rm ' + __filename, err)
-    process.exit(1);
-}
-const _ = require('lodash');
-
-const options = <%= JSON.stringify(options, null, 4) %>
-
-_.defaults(options, jsonschemaTools.defaultOptions);
-if (options.verbose) {
-    options.log.level = 'debug';
-} else {
-    options.log.level = 'info';
-}
-
-jsonschemaTools.materializeModifiedSchemas(undefined, options).catch((err) => {
-    console.error(\`Failed materializing modified \${options.currentName} file: Aborting git commit.\`, err.message, err.stack);
-    process.exit(1)
-});
-`);
-
-/**
  * Installs a git pre-commit hook in gitRoot that will
- * materialize any modified files that match currentName.
+ * materialize any staged modified files currentName schema files.
  * @param {Object} args
  */
-async function installGitHook(args) {
+function installGitPreCommitHook(args) {
     const options = argsToOptions(args);
-    // remove the logger from options so we don't stringify it in the template.
-    const log = options.log;
-    delete options.log;
-
-    // Find gitRoot if it isn't provided.
-    const gitRoot = options.gitRoot || await findGitRoot();
-
-    // If schemaBaseUris were not given, then assume we will look
-    // for $ref URIs starting at the git root.
-    if (_.isEmpty(options.schemaBaseUris)) {
-        options.schemaBaseUris = [gitRoot];
-    }
-
-    const preCommitPath = path.join(gitRoot, '.git', 'hooks', 'pre-commit');
-    const preCommitContent = preCommitTemplate({ options });
-
-    log.info(`Saving jsonschema-tools materialize-modified pre-commit hook to ${preCommitPath}`);
-    if (!options.dryRun) {
-        await fse.writeFile(preCommitPath, preCommitContent);
-        await fse.chmod(preCommitPath, 0o755);
-    } else {
-        log.info('--dry-run: Not installing pre-commit hook.');
-    }
+    installGitHook(options);
 }
 
 
@@ -292,7 +249,7 @@ async function installGitHook(args) {
 const argParser = yargs
     .scriptName('jsonschema-tools')
     .command(
-        'dereference [schema-path...]', 'Dereference a JSONSchema.',
+        'dereference [schema-path...]', 'Dereference a JSONSchema and output it on stdout.',
         y => y
             .options(dereferenceOptions)
             .positional('schema-path', schemaPathArg),
@@ -306,41 +263,24 @@ const argParser = yargs
         materialize
     )
     .command(
-        'materialize-modified [git-root]', 'Looks for (git) modified current JSONSchema files and materializes them.',
+        'materialize-modified [schema-base-path]', 'Looks for (git) modified current JSONSchema files and materializes them.',
         y => y
             .options(commonOptions)
             .options(gitOptions)
-            .positional('git-root', {
-                desc: 'Path to git-root in which to look for modified schemas.',
-                type: 'string',
-                normalize: true,
-            }),
+            .positional('schema-base-path', schemaBasePathArg),
         materializeModified
     )
     .command(
         'materialize-all [schema-base-path]', 'Looks for all current JSONSchema files and materializes them.',
         y => y
             .options(commonOptions)
-            .positional('schema-base-path', {
-                desc: 'Path in which to look for current schemas.',
-                type: 'string',
-                normalize: true,
-                default: './',
-            }),
+            .positional('schema-base-path', schemaBasePathArg),
         materializeAll
     )
     .command(
-        'install-git-hook [git-root]', 'Installs a git pre-commit hook that will materialize (git) modified current schema files before commit.',
-        y => y
-            .options(commonOptions)
-            .options(dereferenceOptions)
-            .options(gitOptions)
-            .positional('git-root', {
-                desc: 'Local git repository root in which to install git pre-commit hook.  If not given, this will find the git root starting at the current working directory.',
-                type: 'string',
-                normalize: true,
-            }),
-        installGitHook
+        'install-git-hook [schema-base-path]', 'Installs a git pre-commit hook that will materialize (git staged) modified current schema files before commit.',
+        y => y.positional('schema-base-path', schemaBasePathArg),
+        installGitPreCommitHook
     )
     .showHelpOnFail(false, 'Specify --help for available options')
     .help();
