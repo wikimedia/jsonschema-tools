@@ -608,18 +608,18 @@ function schemaPathToInfo(schemaPath, options = {}) {
 }
 
 /**
- * Looks in schemaBasePath for files that look like schema files.
+ * Looks in options.schemaBasePath for files that look like schema files.
  * These are either X.Y.Z.<contentType> files or currentName.<contentType>
  * files.
- * @param {string} schemaBasePath
  * @param {Object} options
  * @return {Array}
  */
-function findSchemaPaths(schemaBasePath, options = {}) {
+function findSchemaPaths(options = {}) {
     options = readConfig(options);
-    options.log.debug(`Finding all schema files in ${schemaBasePath}`);
+
+    options.log.debug(`Finding all schema files in ${options.schemaBasePath}`);
     // Filter for what look like schema paths.
-    return readdirSync(schemaBasePath)
+    return readdirSync(options.schemaBasePath)
     // Map to parsed path
     .map(schemaPath => path.parse(schemaPath))
     // Must be one of desired output types
@@ -657,17 +657,16 @@ function schemaInfoCompare(infoA, infoB) {
 }
 
 /**
- * Looks in schemaBasePath for files that look like schema files and
+ * Looks in options.schemaBasePath for files that look like schema files and
  * then maps them using schemaPathToInfo, returning an object with
  * info and schema.
- * @param {string} schemaBasePath
  * @param {Object} options
  * @return {Object[]}
  */
-function findAllSchemasInfo(schemaBasePath, options = {}) {
+function findAllSchemasInfo(options = {}) {
     options = readConfig(options);
 
-    const schemaPaths = findSchemaPaths(schemaBasePath, options);
+    const schemaPaths = findSchemaPaths(options);
     // Map each schema path to a schema info object, including the schema itself.
     return schemaPaths.map(schemaPath => schemaPathToInfo(schemaPath, options))
     .sort(schemaInfoCompare);
@@ -684,15 +683,15 @@ function groupSchemasByTitle(schemaInfos) {
 }
 
 /**
- * Finds all schemas in schemaBasePath, converts them to schema info objects,
+ * Finds all schemas in options.schemaBasePath, converts them to schema info objects,
  * and groups them by schema title
  * @param {string} schemaBasePath
  * @param {Object} options
  * @return {Object}
  */
-function findSchemasByTitle(schemaBasePath, options = {}) {
+function findSchemasByTitle(options = {}) {
     options = readConfig(options);
-    return groupSchemasByTitle(findAllSchemasInfo(schemaBasePath, options));
+    return groupSchemasByTitle(findAllSchemasInfo(options));
 }
 
 /**
@@ -714,26 +713,24 @@ function groupSchemasByTitleAndMajor(schemaInfos) {
 }
 
 /**
- * Finds all schemas in schemaBasePath, converts them to schema info objects,
+ * Finds all schemas in options.schemaBasePath, converts them to schema info objects,
  * and groups them by schema title and major version
- * @param {string} schemaBasePath
  * @param {Object} options
  * @return {Object}
  */
-function findSchemasByTitleAndMajor(schemaBasePath, options = {}) {
+function findSchemasByTitleAndMajor(options = {}) {
     options = readConfig(options);
-    return groupSchemasByTitleAndMajor(findAllSchemasInfo(schemaBasePath, options));
+    return groupSchemasByTitleAndMajor(findAllSchemasInfo(options));
 }
 
 /**
- * Finds all current schema files and materializes them.
- * @param {string} schemaBasePath
+ * Finds all current schema files in options.schemasBasePath and materializes them.
  * @param {Object} options
  * @return {Array} generated schema file paths
  */
-async function materializeAllSchemas(schemaBasePath, options = {}) {
+async function materializeAllSchemas(options = {}) {
     options = readConfig(options);
-    const currentSchemasInfo = (await findAllSchemasInfo(schemaBasePath, options))
+    const currentSchemasInfo = (await findAllSchemasInfo(options))
     .filter(e => e.current);
 
     return _.flatten(await Promise.all(_.map(
