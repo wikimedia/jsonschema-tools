@@ -248,9 +248,8 @@ describe('findSchemasByTitleAndMajor', function() {
 
     it('should find schemas grouped by title and major', function() {
         // Force re-reading of (default) config options.
-        const options = readConfig({}, true);
-        const schemaBasePath = fixture.resolve('schemas/');
-        const schemasByTitleAndMajor = findSchemasByTitleAndMajor(schemaBasePath, options);
+        const options = readConfig({ schemaBasePath: fixture.resolve('schemas/') }, true);
+        const schemasByTitleAndMajor = findSchemasByTitleAndMajor(options);
         assert.deepStrictEqual(_.keys(schemasByTitleAndMajor), ['basic', 'common']);
         assert.deepStrictEqual(_.keys(schemasByTitleAndMajor.basic), ['1']);
         assert.deepStrictEqual(_.keys(schemasByTitleAndMajor.common), ['1']);
