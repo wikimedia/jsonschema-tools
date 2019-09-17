@@ -290,3 +290,43 @@ Options provided on the CLI will take precedence over those read from config.
     configPaths: ['./.jsonschema-tools.yaml'],
 }
 ```
+
+# Schema Repository Tests
+
+jsonschema-tools exports a `tests` module that aides in ensuring that a schema
+repository is in a maintainable structure, and that its schema versions are
+backwards compatible and robust.
+
+To run all tests in your schema repository, create a file in e.g.
+`tests/schema-repository.js` with
+
+```javascript
+'use strict';
+
+// Run all jsonschema-tools schema repository tests.
+// This assumes schemaBasePath is configured in .jsonschema-tools.yaml,
+// or that schemaBasePath is ./
+require('@wikimedia/jsonschema-tools').tests.all({ logLevel: warn });
+```
+
+The tests are as follows:
+
+## structure
+- Schemas are in a hierarchy and layout that matches their schema title's
+- All configured content types exist
+- All schemas have 'current' versions that are the same as the latest materialized version
+- etc.
+
+## robustness
+Robustness tests ensure that schemas will be easily useable in strongly typed and/or
+SQL based systems.
+
+- All schemas are valid (draft-7) JSONSchemas and are secure (according to AJV, e.g. no unlimited regexes)
+- All fields are in snake_case format
+- All fields have monomorphic types
+- All required properties are defined
+
+## compatibility
+- All materialized schemas with the same major version must be backwards compatible
+  (they can only add new non-required fields).
+
