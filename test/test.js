@@ -12,7 +12,7 @@ const {
     findSchemasByTitleAndMajor,
     readConfig,
     materializeAllSchemas,
-    declareTests
+    tests
 } = require('../index.js');
 
 
@@ -316,6 +316,6 @@ describe('Test Schema Repository Tests', function() {
         // basic/current is at 1.2.0, which is not yet materialized in fixture.
         // Materialize all so declareTests will pass.
         await materializeAllSchemas(options);
-        declareTests(options);
+        tests.all(options);
     });
 });
