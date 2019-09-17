@@ -14,5 +14,6 @@ properties:
   dt:
     type: string
     format: date-time
+    maxLength: 128
 required:
   - $schema
