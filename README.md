@@ -306,7 +306,7 @@ To run all tests in your schema repository, create a file in e.g.
 // Run all jsonschema-tools schema repository tests.
 // This assumes schemaBasePath is configured in .jsonschema-tools.yaml,
 // or that schemaBasePath is ./
-require('@wikimedia/jsonschema-tools').tests.all({ logLevel: warn });
+require('@wikimedia/jsonschema-tools').tests.all({ logLevel: 'warn' });
 ```
 
 The tests are as follows:
