@@ -265,6 +265,19 @@ describe('findSchemasByTitleAndMajor', function() {
         assert.strictEqual(latest.version, '1.2.0');
         assert.strictEqual(latest.current, true);
     });
+
+    it('should ignore schemas if they match ignoreSchemas config', function() {
+        const customOptions = {
+            schemaBasePath: fixture.resolve('schemas/'),
+            ignoreSchemas: [/\/basic\/1.1.0/],
+        };
+
+        const options = readConfig(customOptions, true);
+        const schemasByTitleAndMajor = findSchemasByTitleAndMajor(options);
+
+        const basicInfos = schemasByTitleAndMajor.basic['1'];
+        assert.deepStrictEqual(basicInfos.map(e => e.version), ['1.0.0', '1.2.0']);
+    });
 });
 
 
