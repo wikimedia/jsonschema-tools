@@ -65,6 +65,7 @@ const expectedBasicDereferencedSchema = {
         },
         dt: {
             type: 'string',
+            maxLength: 128,
             format: 'date-time',
         },
         test: {
