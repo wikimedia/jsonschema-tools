@@ -277,6 +277,11 @@ Options provided on the CLI will take precedence over those read from config.
      */
     shouldGitAdd: true,
     /**
+     * When finding schemas and info, if a schema's $id matches any regex here,
+     * it will not be included in results.
+     */
+    ignoreSchemas: [],
+    /**
      * special case option to ease setting log level to
      * debug from CLI (where pino is not easily configurable).
      * Pino's log.level will be set to this by the readConfig function.
