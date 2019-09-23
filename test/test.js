@@ -11,6 +11,7 @@ const {
     materializeSchemaVersion,
     findSchemasByTitleAndMajor,
     readConfig,
+    getSchemaById,
     materializeAllSchemas,
     tests
 } = require('../index.js');
@@ -306,6 +307,38 @@ describe('readConfig', function() {
         assert.deepEqual(options.contentTypes, ['yaml', 'json']); // overridden by config2
         assert.strictEqual(options.shouldDereference, false); // overridden by config1
         assert.strictEqual(options.schemaTitleField, 'title'); // defaultOptions
+    });
+});
+
+
+describe('getSchemaById', function() {
+    let fixture;
+
+    before('Copying fixtures to temp directory', async function() {
+        // Copy the fixtures/ dir into a temp directory that is automatically
+        // cleaned up after each test.
+        fixture = testFixture();
+        await fixture.copy();
+    });
+
+    it('should get existent schema by $id', async function() {
+        const customOptions = {
+            schemaBasePath: fixture.resolve('schemas/')
+        };
+        const options = readConfig(customOptions, true);
+
+        const schema = await getSchemaById('/common/1.0.0', options);
+        assert.equal(schema.$id, '/common/1.0.0');
+    });
+
+    it('should reject if no schema can be found by $id', async function() {
+        const customOptions = {
+            schemaBasePath: fixture.resolve('schemas/')
+        };
+        const options = readConfig(customOptions, true);
+        assert.rejects(async () => {
+            await getSchemaById('/nonexistent/1.0.0', options);
+        });
     });
 });
 
