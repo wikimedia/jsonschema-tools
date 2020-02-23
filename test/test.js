@@ -94,92 +94,132 @@ const expectedBasicDereferencedSchema = {
 describe('materializeSchemaVersion', function() {
     let tests = [
         {
-            name: 'should materialize new yaml version from file with symlink',
+            name: 'should materialize new yaml version from file with extensionless symlink',
             schemaPath: 'schemas/basic/current.yaml',
             options: {
-                shouldSymlink: true,
+                shouldSymlinkExtensionless: true,
+                shouldSymlinkLatest: false,
                 contentTypes: ['yaml'],
                 shouldGitAdd: false,
                 shouldDereference: false,
             },
             expected: {
                 materializedPaths: ['schemas/basic/1.2.0.yaml', 'schemas/basic/1.2.0'],
-                symlinkPath: 'schemas/basic/1.2.0',
+                extensionlessSymlinkPath: 'schemas/basic/1.2.0',
                 schema: expectedBasicSchema
             },
         },
         {
-            name: 'should materialize new yaml version from file without symlink',
+            name: 'should materialize new yaml version from file without extensionless symlink',
             schemaPath: 'schemas/basic/current.yaml',
             options: {
-                shouldSymlink: false,
+                shouldSymlinkExtensionless: false,
+                shouldSymlinkLatest: false,
                 contentTypes: ['yaml'],
                 shouldGitAdd: false,
                 shouldDereference: false,
             },
             expected: {
                 materializedPaths: ['schemas/basic/1.2.0.yaml'],
-                symlinkPath: 'schemas/basic/1.2.0',
+                extensionlessSymlinkPath: 'schemas/basic/1.2.0',
                 schema: expectedBasicSchema
             },
         },
         {
-            name: 'should materialize new json version from file with symlink',
+            name: 'should materialize new json version from file with extensionless symlink',
             schemaPath: 'schemas/basic/current.yaml',
             options: {
-                shouldSymlink: true,
+                shouldSymlinkExtensionless: true,
+                shouldSymlinkLatest: false,
                 contentTypes: ['json'],
                 shouldGitAdd: false,
                 shouldDereference: false,
             },
             expected: {
                 materializedPaths: ['schemas/basic/1.2.0.json', 'schemas/basic/1.2.0'],
-                symlinkPath: 'schemas/basic/1.2.0',
+                extensionlessSymlinkPath: 'schemas/basic/1.2.0',
                 schema: expectedBasicSchema
             },
         },
         {
-            name: 'should materialize new json version from file without symlink',
+            name: 'should materialize new json version from file without extensionless symlink',
             schemaPath: 'schemas/basic/current.yaml',
             options: {
-                shouldSymlink: false,
+                shouldSymlinkExtensionless: false,
+                shouldSymlinkLatest: false,
                 contentTypes: ['json'],
                 shouldGitAdd: false,
                 shouldDereference: false,
             },
             expected: {
                 materializedPaths: ['schemas/basic/1.2.0.json'],
-                symlinkPath: 'schemas/basic/1.2.0',
+                extensionlessSymlinkPath: 'schemas/basic/1.2.0',
                 schema: expectedBasicSchema
             },
         },
         {
-            name: 'should materialize new yaml and json version from file with symlink',
+            name: 'should materialize new json version from file without extensionless with latest symlink',
             schemaPath: 'schemas/basic/current.yaml',
             options: {
-                shouldSymlink: true,
+                shouldSymlinkExtensionless: false,
+                shouldSymlinkLatest: true,
+                contentTypes: ['json'],
+                shouldGitAdd: false,
+                shouldDereference: false,
+            },
+            expected: {
+                materializedPaths: ['schemas/basic/1.2.0.json', 'schemas/basic/latest.json'],
+                extensionlessSymlinkPath: 'schemas/basic/1.2.0',
+                latestSchemaVersion: '1.2.0',
+                schema: expectedBasicSchema
+            },
+        },
+        {
+            name: 'should materialize new yaml and json version from file with extensionless symlink',
+            schemaPath: 'schemas/basic/current.yaml',
+            options: {
+                shouldSymlinkExtensionless: true,
+                shouldSymlinkLatest: false,
                 contentTypes: ['json', 'yaml'],
                 shouldGitAdd: false,
                 shouldDereference: false,
             },
             expected: {
                 materializedPaths: ['schemas/basic/1.2.0.json', 'schemas/basic/1.2.0.yaml', 'schemas/basic/1.2.0'],
-                symlinkPath: 'schemas/basic/1.2.0',
+                extensionlessSymlinkPath: 'schemas/basic/1.2.0',
                 schema: expectedBasicSchema
             },
         },
         {
-            name: 'should materialize new yaml and json version from file with symlink and dereferencing',
+            name: 'should materialize new yaml and json version from file with extensionless symlink and dereferencing',
             schemaPath: 'schemas/basic/current.yaml',
             options: {
-                shouldSymlink: true,
+                shouldSymlinkExtensionless: true,
+                shouldSymlinkLatest: false,
                 contentTypes: ['json', 'yaml'],
                 shouldGitAdd: false,
                 shouldDereference: true,
             },
             expected: {
                 materializedPaths: ['schemas/basic/1.2.0.json', 'schemas/basic/1.2.0.yaml', 'schemas/basic/1.2.0'],
-                symlinkPath: 'schemas/basic/1.2.0',
+                extensionlessSymlinkPath: 'schemas/basic/1.2.0',
+                schema: expectedBasicDereferencedSchema
+            },
+        },
+        {
+            name: 'should materialize new yaml and json version from file with extensionless and latest symlinks and dereferencing',
+            schemaPath: 'schemas/basic/current.yaml',
+            options: {
+                shouldSymlinkExtensionless: true,
+                shouldSymlinkLatest: true,
+                contentTypes: ['json', 'yaml'],
+                shouldGitAdd: false,
+                shouldDereference: true,
+            },
+            expected: {
+                materializedPaths: ['schemas/basic/1.2.0.json', 'schemas/basic/1.2.0.yaml', 'schemas/basic/1.2.0', 'schemas/basic/latest.json', 'schemas/basic/latest.yaml', 'schemas/basic/latest'],
+                extensionlessSymlinkPath: 'schemas/basic/1.2.0',
+                latestSchemaVersion: '1.2.0', // Used to construct tests that ensure latest symlinks point to the right place
                 schema: expectedBasicDereferencedSchema
             },
         },
@@ -217,18 +257,28 @@ describe('materializeSchemaVersion', function() {
                 test.expected.materializedPaths.sort().map(p => fixture.resolve(p))
             );
 
+            if (test.options.shouldSymlinkLatest) {
+                test.options.contentTypes.forEach(async (contentType) => {
+                    assert.equal(
+                        await fse.realpath(path.join(schemaDirectory, `latest.${contentType}`)),
+                        await fse.realpath(path.join(schemaDirectory, `${test.expected.latestSchemaVersion}.${contentType}`))
+                    );
+                });
+            }
+
             assert.equal(
-                await fse.exists(fixture.resolve(test.expected.symlinkPath)),
-                test.options.shouldSymlink
+                await fse.exists(fixture.resolve(test.expected.extensionlessSymlinkPath)),
+                test.options.shouldSymlinkExtensionless
             );
-            if (test.shouldSymlink) {
+            if (test.options.shouldSymlinkExtensionless) {
                 assert.equal(
                     // The symlink should point at the first
                     // contentType listed in contentTypes.
-                    await fse.realpath(test.expected.symlinkPath),
-                    test.expected.materializedPaths[0]
+                    await fse.realpath(fixture.resolve(test.expected.extensionlessSymlinkPath)),
+                    await fse.realpath(fixture.resolve(test.expected.materializedPaths[0]))
                 );
             }
+
 
             // Assert that all materialized files are what is expected.
             materializedFiles.forEach(async (materializedFile) => {
@@ -298,12 +348,12 @@ describe('readConfig', function() {
                 fixture.resolve('jsonschema-tools.config1.yaml'),
                 fixture.resolve('jsonschema-tools.config2.yaml'),
             ],
-            shouldSymlink: true
+            shouldSymlinkExtensionless: true
         };
 
         const options = readConfig(customOptions, true);
 
-        assert.strictEqual(options.shouldSymlink, true); // overridden by custom option
+        assert.strictEqual(options.shouldSymlinkExtensionless, true); // overridden by custom option
         assert.deepEqual(options.contentTypes, ['yaml', 'json']); // overridden by config2
         assert.strictEqual(options.shouldDereference, false); // overridden by config1
         assert.strictEqual(options.schemaTitleField, 'title'); // defaultOptions

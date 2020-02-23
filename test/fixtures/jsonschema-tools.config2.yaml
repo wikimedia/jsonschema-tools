@@ -1,2 +1,2 @@
-shouldSymlink: false
+shouldSymlinkExtensionless: false
 contentTypes: [yaml, json]
