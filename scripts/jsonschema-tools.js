@@ -61,8 +61,13 @@ const commonOptions = {
         type: 'boolean',
     },
     S: {
-        alias: 'no-symlink',
+        alias: 'no-symlink-extensionless',
         desc: 'If given, an extensionless symlink to the materialized schema will not be created.',
+        type: 'boolean',
+    },
+    L: {
+        alias: 'no-symlink-latest',
+        desc: 'If given, a latest symlink to the latest materialized schema will not be created.',
         type: 'boolean',
     },
     n: {
@@ -134,14 +139,17 @@ const schemaBasePathArg = {
 function argsToOptions(args) {
     const options = {};
     _.keys(args).forEach((key) => {
-        if (key === 'noExtensionlessSymlink') {
-            options.shouldSymlinkExtensionless = !args[key];
-        } else if (key === 'noLatestSymlink') {
-            options.shouldSymlinkLatest = !args[key];
-        } else if (key === 'noDereference') {
-            options.shouldDereference = !args[key];
-        } else if (key === 'noGitAdd') {
-            options.shouldGitAdd = !args[key];
+        // NOTE: --no* options are provided as args keys without the no*
+        // prefix negated, e.g. --no-symlink-latest will result in
+        // symlinkLatest: false
+        if (key === 'symlinkExtensionless') {
+            options.shouldSymlinkExtensionless = args[key];
+        } else if (key === 'symlinkLatest') {
+            options.shouldSymlinkLatest = args[key];
+        } else if (key === 'dereference') {
+            options.shouldDereference = args[key];
+        } else if (key === 'gitAdd') {
+            options.shouldGitAdd = args[key];
         } else if (key === 'staged') {
             options.gitStaged = args[key];
         } else if (_.has(defaultOptions, key)) {
