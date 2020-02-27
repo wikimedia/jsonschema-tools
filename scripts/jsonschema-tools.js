@@ -134,8 +134,10 @@ const schemaBasePathArg = {
 function argsToOptions(args) {
     const options = {};
     _.keys(args).forEach((key) => {
-        if (key === 'noSymlink') {
-            options.shouldSymlink = !args[key];
+        if (key === 'noExtensionlessSymlink') {
+            options.shouldSymlinkExtensionless = !args[key];
+        } else if (key === 'noLatestSymlink') {
+            options.shouldSymlinkLatest = !args[key];
         } else if (key === 'noDereference') {
             options.shouldDereference = !args[key];
         } else if (key === 'noGitAdd') {

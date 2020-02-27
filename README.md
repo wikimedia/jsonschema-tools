@@ -232,7 +232,12 @@ Options provided on the CLI will take precedence over those read from config.
      * to the version.contentTypes[0].  E.g. if contentTypes has 'yaml' as the first
      * entry, then 1.0.0 -> 1.0.0.yaml.
      */
-    shouldSymlink: true,
+    shouldSymlinkExtensionless: true,
+    /**
+     * If true, materialize functions will symlink a 'latest' file
+     * to the latest version.contentTypes[0].
+     */
+    shouldSymlinkLatest: true,
     /**
      * List of content types to output when materializing versioned schema files.
      */
