@@ -234,7 +234,7 @@ Options provided on the CLI will take precedence over those read from config.
      */
     shouldSymlinkExtensionless: true,
     /**
-     * If true, materialize functions will symlink an 'latest' file
+     * If true, materialize functions will symlink a 'latest' file
      * to the latest version.contentTypes[0].
      */
     shouldSymlinkLatest: true,
