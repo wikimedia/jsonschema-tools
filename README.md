@@ -335,6 +335,8 @@ SQL based systems.
 - All fields are in snake_case format
 - All fields have monomorphic types
 - All required properties are defined
+- JSONSchema examples validate against their schema
+- JSONSchema examples $schema field matches their schema $id
 
 ## compatibility
 - All materialized schemas with the same major version must be backwards compatible
