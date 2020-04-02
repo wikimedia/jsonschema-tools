@@ -236,51 +236,52 @@ shouldSymlinkExtensionless: true
 shouldSymlinkLatest: true
 
 # List of content types to output when materializing versioned schema files.
-contentTypes: ['yaml', 'json'],
+contentTypes: ['yaml', 'json']
 
 # Name of 'current' schema file. Only these files will be considered
 # when materializing modified or 'all' schema files.
-currentName: 'current.yaml',
+currentName: current.yaml
 
 # Field in schema from which to extract the version using semver.coerce.
-schemaVersionField: '$id',
+schemaVersionField: '$id'
 
 # Field in schema from which to extract the schema title.
-schemaTitleField: 'title',
+schemaTitleField: title
 
 # If true, materialize functions will first dereference schemas before outputting them.
-shouldDereference: true,
+shouldDereference: true
 
 # Path in which (current) schemas will be looked for.
-schemaBasePath: process.cwd(),
+# Default process.cwd()
+schemaBasePath: ./
 
 # These are the URIs that will be used when resolving schemas.
 # If not set, the readConfig function will set this to [schemaBasePath]
-schemaBaseUris: undefined,
+schemaBaseUris: null
 
 # If true, don't actually modify anything, just log what would have been done.
-dryRun: false,
+dryRun: false
 
 # If true, only git staged current schema files will be considered by materializeModified.
 # If false, only unstaged current schema files will be considerd by materializeModified.
-gitStaged: false,
+gitStaged: false
 
 # If true, materializeModified will `git add` any versioned schema files it materializes.
-shouldGitAdd: true,
+shouldGitAdd: true
 
 # When finding schemas and info, if a schema's $id matches any regex here,
 # it will not be included in results.
-ignoreSchemas: [],
+ignoreSchemas: []
 
 # special case option to ease setting log level to
 # debug from CLI (where pino is not easily configurable).
 # Pino's log.level will be set to this by the readConfig function.
-logLevel: 'warn',
+logLevel: warn
 
 # Array of default config files from which custom
 # options will be read by readConfig.
 # The keys in these config files are the same as these defaultOptions keys.
-configPaths: ['./.jsonschema-tools.yaml'],
+configPaths: ['./.jsonschema-tools.yaml']
 ```
 
 # Schema Repository Tests
