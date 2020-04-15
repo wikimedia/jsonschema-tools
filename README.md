@@ -13,7 +13,7 @@ In a event stream based architecture, schemas define a contract between
 disparate producers and consumers of data.  Thrift, Protocol Buffers, and Avro
 are all schema based data formats, but can be difficult to use in different
 settings.  These are binary formats, and as such the having schema is requried to
-read data.  Distributing up to data schemas to all users of the data can be difficult,
+read data.  Distributing up to date schemas to all users of the data can be difficult,
 especially when those users are in different organizations.
 
 JSON is a ubiquitous data format, but it can be difficult to work with in strongly
@@ -24,7 +24,7 @@ However, unlike Avro, there is no built in support for evolving JSONSchemas over
 This library helps with managing a repository of evolving JSONSchemas.  It is intended
 to be used in a git repository to materialize staticly versioned schema files as
 your schema evolves.  By having all schema versions materialized as static files,
-a schema repository could be shared to clients either via git, or via a static
+a schema repository could be shared to clients either via git or a static
 http fileserver. An http fileserver on top of a git repository that contains
 predictable schema URLs can act much like Confluent's Avro schema registry,
 but with the benifits of decentralization provided by git.
@@ -198,12 +198,12 @@ materialize modified current files found during a git commit.
 Install jsonschema-tools as a depenendency in your schema repository (or
 globally somewhere), then run `jsonschema-tools install-git-hook` from
 your git working copy checkout.  This will install .git/hooks/pre-commit.
-pre-commit is a NodeJS script, so `require('jsonschema-tools')` must work
+pre-commit is a NodeJS script, so `require('@wikimedia/jsonschema-tools')` must work
 from within your git checkout.
 
 ## As an NPM dependency
 Alternatively, you can make jsonschema-tools an npm dependency in your
-schema git repository, and at an npm `postinstall` script to automatically
+schema git repository, and add an npm `postinstall` script to automatically
 install the jsonschema-tools pre-commit hook for any user of the repository.
 Add the following to your package.json:
 
@@ -214,7 +214,7 @@ Add the following to your package.json:
   },
   "devDependencies": {
     ...,
-    "@wikimedia/jsonschema-tools": "^0.3.0"
+    "@wikimedia/jsonschema-tools": "latest"
   }
 ```
 
@@ -225,80 +225,63 @@ available config option overrides are documented below.
 
 Options provided on the CLI will take precedence over those read from config.
 
-```javascript
-{
-   /**
-     * If true, materialize functions will symlink an extensionless versioned file
-     * to the version.contentTypes[0].  E.g. if contentTypes has 'yaml' as the first
-     * entry, then 1.0.0 -> 1.0.0.yaml.
-     */
-    shouldSymlinkExtensionless: true,
-    /**
-     * If true, materialize functions will symlink a 'latest' file
-     * to the latest version.contentTypes[0].
-     */
-    shouldSymlinkLatest: true,
-    /**
-     * List of content types to output when materializing versioned schema files.
-     */
-    contentTypes: ['yaml', 'json'],
-    /**
-     * Name of 'current' schema file. Only these files will be considered
-     * when materializing modified or 'all' schema files.
-     */
-    currentName: 'current.yaml',
-    /**
-     * Field in schema from which to extract the version using semver.coerce.
-     */
-    schemaVersionField: '$id',
-    /**
-     * Field in schema from which to extract the schema title.
-     */
-    schemaTitleField: 'title',
-    /**
-     * If true, materialize functions will first dereference schemas before outputting them.
-     */
-    shouldDereference: true,
-    /**
-     * Path in which (current) schemas will be looked for.
-     */
-    schemaBasePath: process.cwd(),
-    /**
-     * These are the URIs that will be used when resolving schemas.
-     * If not set, the readConfig function will set this to [schemaBasePath]
-     */
-    schemaBaseUris: undefined,
-    /**
-     * If true, don't actually modify anything, just log what would have been done.
-     */
-    dryRun: false,
-    /**
-     * If true, only git staged current schema files will be considered by materializeModified.
-     * If false, only unstaged current schema files will be considerd by materializeModified.
-     */
-    gitStaged: false,
-    /**
-     * If true, materializeModified will `git add` any versioned schema files it materializes.
-     */
-    shouldGitAdd: true,
-    /**
-     * When finding schemas and info, if a schema's $id matches any regex here,
-     * it will not be included in results.
-     */
-    ignoreSchemas: [],
-    /**
-     * special case option to ease setting log level to
-     * debug from CLI (where pino is not easily configurable).
-     * Pino's log.level will be set to this by the readConfig function.
-     */
-    logLevel: 'warn',
-    /**
-     * Array of default config files from which custom
-     * options will be read by readConfig.
-     * The keys in these config files are the same as these defaultOtions keys.
-     */
-    configPaths: ['./.jsonschema-tools.yaml'],
-}
+```yaml
+# If true, materialize functions will symlink an extensionless versioned file
+# to the version.contentTypes[0].  E.g. if contentTypes has 'yaml' as the first
+# entry, then 1.0.0 -> 1.0.0.yaml.
+shouldSymlinkExtensionless: true
+
+# If true, materialize functions will symlink a 'latest' file
+# to the latest version.contentTypes[0].
+shouldSymlinkLatest: true
+
+# List of content types to output when materializing versioned schema files.
+contentTypes: ['yaml', 'json']
+
+# Name of 'current' schema file. Only these files will be considered
+# when materializing modified or 'all' schema files.
+currentName: current.yaml
+
+# Field in schema from which to extract the version using semver.coerce.
+schemaVersionField: '$id'
+
+# Field in schema from which to extract the schema title.
+schemaTitleField: title
+
+# If true, materialize functions will first dereference schemas before outputting them.
+shouldDereference: true
+
+# Path in which (current) schemas will be looked for.
+# Default process.cwd()
+schemaBasePath: ./
+
+# These are the URIs that will be used when resolving schemas.
+# If not set, the readConfig function will set this to [schemaBasePath]
+schemaBaseUris: null
+
+# If true, don't actually modify anything, just log what would have been done.
+dryRun: false
+
+# If true, only git staged current schema files will be considered by materializeModified.
+# If false, only unstaged current schema files will be considerd by materializeModified.
+gitStaged: false
+
+# If true, materializeModified will `git add` any versioned schema files it materializes.
+shouldGitAdd: true
+
+# When finding schemas and info, if a schema's $id matches any regex here,
+# it will not be included in results.
+ignoreSchemas: []
+
+# special case option to ease setting log level to
+# debug from CLI (where pino is not easily configurable).
+# Pino's log.level will be set to this by the readConfig function.
+logLevel: warn
+
+# Array of default config files from which custom
+# options will be read by readConfig.
+# The keys in these config files are the same as these defaultOptions keys.
+configPaths: ['./.jsonschema-tools.yaml']
 ```
 
 # Schema Repository Tests
@@ -335,6 +318,8 @@ SQL based systems.
 - All fields are in snake_case format
 - All fields have monomorphic types
 - All required properties are defined
+- JSONSchema examples validate against their schema
+- JSONSchema examples $schema field matches their schema $id
 
 ## compatibility
 - All materialized schemas with the same major version must be backwards compatible
