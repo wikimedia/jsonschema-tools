@@ -206,7 +206,7 @@ async function materialize(args) {
 
     let schemaPaths = args.schemaPath;
     // Read from stdin if no schema-path was given.
-    if (_.isEmpty(args.schemaPaths)) {
+    if (_.isEmpty(schemaPaths)) {
         schemaPaths = [0];
     }
 
