@@ -17,3 +17,6 @@ properties:
     maxLength: 128
 required:
   - $schema
+examples: 
+  - $schema: /common/1.0.0
+    dt: '2020-06-25T00:00:00Z'

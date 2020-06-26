@@ -18,3 +18,7 @@ properties:
     maxLength: 128
 required:
   - $schema
+examples: 
+  - $schema: { $ref: '#/$id' }
+    dt: '2020-06-25T00:00:00Z'
+

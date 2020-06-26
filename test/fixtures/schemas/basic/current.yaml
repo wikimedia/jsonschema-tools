@@ -28,3 +28,9 @@ allOf:
           type: string
     required:
       - test
+    examples:
+      - $schema: { $ref: '#/$id' }
+        test: test_string_value
+        test_number: 1.0
+        test_map:
+          keyA: valueA
