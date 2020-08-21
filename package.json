@@ -32,6 +32,7 @@
     "js-yaml": "^3.13.1",
     "json-schema-merge-allof": "^0.6.0",
     "json-schema-ref-parser": "^7.1.1",
+    "json-schema-traverse": "^0.4.1",
     "lodash": "^4.17.15",
     "pino": "^5.13.2",
     "pino-pretty": "^3.2.1",

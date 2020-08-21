@@ -8,7 +8,8 @@ const yaml = require('js-yaml');
 const assert = require('assert');
 
 const {
-    materializeSchemaVersion,
+    materializeSchemaToPath,
+    materializeSchema,
     findSchemasByTitleAndMajor,
     readConfig,
     getSchemaById,
@@ -89,9 +90,30 @@ const expectedBasicDereferencedSchema = {
     },
     required: ['$schema', 'test'],
 };
+
+const expectedBasicDereferencedSchemaBounded = {
+    title: 'basic',
+    description: 'Schema used for simple tests',
+    $id: '/basic/1.2.0',
+    $schema: 'https://json-schema.org/draft-07/schema#',
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+        $schema: {
+            type: 'string',
+            description: 'The URI identifying the jsonschema for this event. This may be just a short uri containing only the name and revision at the end of the URI path.  e.g. /schema_name/12345 is acceptable. This often will (and should) match the schema\'s $id field.\n',
+        },
+        test_number: {
+            type: 'number',
+            minimum: -400,
+            maximum: 1200
+        }
+    },
+    required: ['$schema', 'test'],
+};
 /* eslint camelcase: 0 */
 
-describe('materializeSchemaVersion', function() {
+describe('materializeSchemaToPath', function() {
     let tests = [
         {
             name: 'should materialize new yaml version from file with extensionless symlink',
@@ -248,7 +270,7 @@ describe('materializeSchemaVersion', function() {
             const schemaDirectory = path.dirname(schemaFile);
             const schema = yaml.safeLoad(await fse.readFile(schemaFile, 'utf-8'));
 
-            const materializedFiles = await materializeSchemaVersion(
+            const materializedFiles = await materializeSchemaToPath(
                 schemaDirectory, schema, test.options
             );
 
@@ -392,7 +414,35 @@ describe('getSchemaById', function() {
     });
 });
 
+describe('Numeric bounds enforcement', function() {
+    it('should apply maximum and minimum by default if bounds aren\'t configured', async () => {
+        const customOptions = {};
+        const options = readConfig(customOptions, true);
+        const materializedSchema = await materializeSchema(expectedBasicDereferencedSchema, options);
+        assert(materializedSchema.properties.test_integer.minimum === Number.MIN_SAFE_INTEGER);
+        assert(materializedSchema.properties.test_integer.maximum === Number.MAX_SAFE_INTEGER);
+    });
 
+    it('should overwrite maximum and minimum if configured are out of bounds', async () => {
+        const customOptions = {
+            enforcedNumericBounds: [1,2]
+        };
+        const options = readConfig(customOptions, true);
+        const materializedSchema = await materializeSchema(expectedBasicDereferencedSchemaBounded, options);
+        assert(materializedSchema.properties.test_number.minimum === 1);
+        assert(materializedSchema.properties.test_number.maximum === 2);
+    });
+
+    it('should not apply bounds if option is null', async () => {
+        const customOptions = {
+            enforcedNumericBounds: null
+        };
+        const options = readConfig(customOptions, true);
+        const materializedSchema = await materializeSchema(expectedBasicDereferencedSchema, options);
+        assert(!materializedSchema.properties.test_integer.minimum);
+        assert(!materializedSchema.properties.test_integer.maximum);
+    })
+})
 
 describe('Test Schema Repository Tests', function() {
     let fixture;
