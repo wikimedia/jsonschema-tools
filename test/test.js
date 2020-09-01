@@ -395,7 +395,7 @@ describe('getSchemaById', function() {
 });
 
 describe('Numeric bounds enforcement', function() {
-    it('should apply maxi and min by default if bounds aren\'t configured', async () => {
+    it('should apply max and min by default if bounds aren\'t configured', async () => {
         const customOptions = {};
         const options = readConfig(customOptions, true);
         const schema = expectedBasicDereferencedSchema;
