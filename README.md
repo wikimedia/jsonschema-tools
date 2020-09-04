@@ -282,6 +282,12 @@ logLevel: warn
 # options will be read by readConfig.
 # The keys in these config files are the same as these defaultOptions keys.
 configPaths: ['./.jsonschema-tools.yaml']
+
+# Check the existing numeric bounds for a number and integer field, and enforce bounds.
+# The tool will add inclusive `minimum` and `maximum` properties if they aren't
+# present.  Repository tests will ensure all numeric fields have maximum and minimums,
+# that they are at least within these bounds.
+enforcedNumericBounds: [Number.MIN_SAFE_INTEGER, Number.MAX_SAFE_INTEGER],
 ```
 
 # Schema Repository Tests
