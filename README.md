@@ -329,8 +329,7 @@ SQL based systems.
 - JSONSchema examples validate against their schema
 - JSONSchema examples $schema field matches their schema $id
 - If options.enforcedNumericBounds, all numeric type fields have minimum and maximum values within those bounds.
-  These maximum and minumum bounds will be automatically set in materialized schemas
-  if they are not set in the current schema file.
+  These bounds will be automatically set in materialized schemas if they are not set in the current schema file.
 ## compatibility
 - All materialized schemas with the same major version must be backwards compatible
   (they can only add new non-required fields).
