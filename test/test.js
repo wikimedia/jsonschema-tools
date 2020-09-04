@@ -35,10 +35,14 @@ const expectedBasicSchema = {
                     default: 'default test'
                 },
                 test_number: {
-                    type: 'number'
+                    type: 'number',
+                    maximum: 9007199254740991,
+                    minimum: -9007199254740991
                 },
                 test_integer: {
-                    type: 'integer'
+                    type: 'integer',
+                    maximum: 9007199254740991,
+                    minimum: 0
                 },
                 test_map: {
                     description: 'We want to support \'map\' types using additionalProperties to specify the value types.  (Keys are always strings.)\n',
@@ -75,10 +79,14 @@ const expectedBasicDereferencedSchema = {
             default: 'default test'
         },
         test_number: {
-            type: 'number'
+            type: 'number',
+            maximum: 9007199254740991,
+            minimum: -9007199254740991
         },
         test_integer: {
-            type: 'integer'
+            type: 'integer',
+            maximum: 9007199254740991,
+            minimum: 0
         },
         test_map: {
             description: 'We want to support \'map\' types using additionalProperties to specify the value types.  (Keys are always strings.)\n',
@@ -90,6 +98,14 @@ const expectedBasicDereferencedSchema = {
     },
     required: ['$schema', 'test'],
 };
+
+const expectedBasicDereferencedSchemaWithoutNumericBounds = _.cloneDeep(expectedBasicDereferencedSchema);
+// basic/current.yaml only specifies a test_integer field minimum of 0.  For the test that disables
+// numeric bounds enforcement, we need the same schema, but without the numeric bounds enforced on
+// fields that don't explicitly set max and min.
+delete expectedBasicDereferencedSchemaWithoutNumericBounds.properties.test_number.maximum;
+delete expectedBasicDereferencedSchemaWithoutNumericBounds.properties.test_number.minimum;
+delete expectedBasicDereferencedSchemaWithoutNumericBounds.properties.test_integer.maximum;
 
 /* eslint camelcase: 0 */
 
@@ -399,26 +415,42 @@ describe('Numeric bounds enforcement', function() {
         const customOptions = {};
         const options = readConfig(customOptions, true);
         const schema = expectedBasicDereferencedSchema;
+
         const materializedSchema = await materializeSchema(schema, options);
+
+        // basic schema has test_integer's mininum set to 0, so we shouldn't
+        // overwrite it with MIN_SAFE_INTEGER.
         assert(
             materializedSchema.properties.test_integer.minimum ===
-            Number.MIN_SAFE_INTEGER
+            0
         );
         assert(
             materializedSchema.properties.test_integer.maximum ===
             Number.MAX_SAFE_INTEGER
         );
+
+        assert(
+            materializedSchema.properties.test_number.minimum ===
+            Number.MIN_SAFE_INTEGER
+        );
+        assert(
+            materializedSchema.properties.test_number.maximum ===
+            Number.MAX_SAFE_INTEGER
+        );
     });
 
-    it('should not apply bounds if option is null', async () => {
+    it('should not apply bounds if option is false', async () => {
         const customOptions = {
-            enforcedNumericBounds: null
+            enforcedNumericBounds: false
         };
         const options = readConfig(customOptions, true);
-        const schema = expectedBasicDereferencedSchema;
+        const schema = expectedBasicDereferencedSchemaWithoutNumericBounds;
+
         const materializedSchema = await materializeSchema(schema, options);
-        assert(!materializedSchema.properties.test_integer.minimum);
-        assert(!materializedSchema.properties.test_integer.maximum);
+        assert(materializedSchema.properties.test_integer.minimum === 0);
+        assert(_.isUndefined(materializedSchema.properties.test_integer.maximum));
+        assert(_.isUndefined(materializedSchema.properties.test_number.minimum));
+        assert(_.isUndefined(materializedSchema.properties.test_number.maximum));
     });
 });
 
