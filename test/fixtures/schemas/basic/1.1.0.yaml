@@ -16,6 +16,9 @@ properties:
     default: default test
   test_number:
     type: number
+    maximum: 9007199254740991
+    minimum: -9007199254740991
+
   test_map:
     description: >
       We want to support 'map' types using additionalProperties to specify the

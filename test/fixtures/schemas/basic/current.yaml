@@ -17,6 +17,7 @@ allOf:
 
       test_integer:
         type: integer
+        minimum: 0
 
       test_map:
         description: >
