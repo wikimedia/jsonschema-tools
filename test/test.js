@@ -100,7 +100,9 @@ const expectedBasicDereferencedSchema = {
     required: ['$schema', 'test'],
 };
 
-const expectedBasicDereferencedSchemaWithoutNumericBounds = _.cloneDeep(expectedBasicDereferencedSchema);
+const expectedBasicDereferencedSchemaWithoutNumericBounds = _.cloneDeep(
+    expectedBasicDereferencedSchema
+);
 // basic/current.yaml only specifies a test_integer field minimum of 0.  For the test that disables
 // numeric bounds enforcement, we need the same schema, but without the numeric bounds enforced on
 // fields that don't explicitly set max and min.
