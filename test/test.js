@@ -14,6 +14,7 @@ const {
     readConfig,
     getSchemaById,
     materializeAllSchemas,
+    schemaVersion,
     tests
 } = require('../index.js');
 
@@ -407,6 +408,19 @@ describe('getSchemaById', function() {
         assert.rejects(async () => {
             await getSchemaById('/nonexistent/1.0.0', options);
         });
+    });
+});
+
+describe('Reasonable schema version number parsing', function() {
+    it('should parse versions from $id strings', async () => {
+        assert(schemaVersion(expectedBasicSchema, '$id') === '1.2.0');
+    });
+
+    it('should parse $id strings with embedded numerals', async () => {
+        const barebonesSchema = {
+            $id: '/w3c/reportingapi/report/1.2.3',
+        };
+        assert(schemaVersion(barebonesSchema, '$id') === '1.2.3');
     });
 });
 
