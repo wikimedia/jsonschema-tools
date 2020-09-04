@@ -3,6 +3,10 @@
   "version": "0.7.7",
   "description": "Utilties to help manage a repository of versioned JSONSchemas.",
   "homepage": "https://github.com/wikimedia/jsonschema-tools",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wikimedia/jsonschema-tools.git"
+  },
   "main": "index.js",
   "scripts": {
     "test": "nyc mocha && npm run lint",
