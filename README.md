@@ -1,5 +1,7 @@
 # jsonschema-tools
 
+![Node.js CI](https://github.com/wikimedia/jsonschema-tools/workflows/Node.js%20CI/badge.svg)
+
 A library and CLI to work with a repository of versioned JSONSchemas.
 
 jsonschema-tools supports
