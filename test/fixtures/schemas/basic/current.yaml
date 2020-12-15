@@ -7,7 +7,6 @@ additionalProperties: false
 allOf:
   - $ref: /common/1.0.0
   - properties:
-
       test:
         type: string
         default: default test

@@ -58,7 +58,7 @@ const expectedBasicSchema = {
                 $schema: { $ref: '#/$id' },
                 test: 'test_string_value',
                 test_number: 1.0,
-                test_map: { keyA: 'valueA'}
+                test_map: { keyA: 'valueA' }
             }]
         }
     ]
@@ -113,7 +113,7 @@ const expectedBasicDereferencedSchema = {
         dt: '2020-06-25T00:00:00Z',
         test: 'test_string_value',
         test_number: 1.0,
-        test_map: { keyA: 'valueA'}
+        test_map: { keyA: 'valueA' }
     }]
 };
 
