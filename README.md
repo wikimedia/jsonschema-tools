@@ -294,7 +294,7 @@ enforcedNumericBounds: [Number.MIN_SAFE_INTEGER, Number.MAX_SAFE_INTEGER],
 # If true, repository tests for schemas will fail if the schema doesn't have
 # examples.  If it does have examples, they will be also tested for
 # validation against the schema.
-requireExamples: true
+requireExamples: false
 ```
 
 # Schema Repository Tests
