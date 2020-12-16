@@ -54,12 +54,18 @@ const expectedBasicSchema = {
                 }
             },
             required: ['test'],
-            examples: [{
-                $schema: { $ref: '#/$id' },
-                test: 'test_string_value',
-                test_number: 1.0,
-                test_map: { keyA: 'valueA' }
-            }]
+            examples: [
+                {
+                    $schema: { $ref: '#/$id' },
+                    test: 'test_string_value',
+                    test_number: 1.0,
+                    test_map: { keyA: 'valueA' }
+                },
+                {
+                    $schema: { $ref: '#/$id' },
+                    test: 'test_string_value_2',
+                },
+            ]
         }
     ]
 };
@@ -104,17 +110,31 @@ const expectedBasicDereferencedSchema = {
         }
     },
     required: ['$schema', 'test'],
-    examples: [{
-        // Even though both common and basic define $schema in their first example,
-        // Since the basic schema comes last in the list of allOf to merge,
-        // it's $schema value should take precedence when using jsonschema-tools'
-        // custom examples merge.
-        $schema: '/basic/1.2.0',
-        dt: '2020-06-25T00:00:00Z',
-        test: 'test_string_value',
-        test_number: 1.0,
-        test_map: { keyA: 'valueA' }
-    }]
+    examples: [
+        {
+            // Even though both common and basic define $schema in their first example,
+            // Since the basic schema comes last in the list of allOf to merge,
+            // it's $schema value should take precedence when using jsonschema-tools'
+            // custom examples merge.
+            $schema: '/basic/1.2.0',
+            dt: '2020-06-25T00:00:00Z',
+            test: 'test_string_value',
+            test_number: 1.0,
+            test_map: { keyA: 'valueA' }
+        },
+        // Examples are merged using a cartesian product of all refed examples too!
+        // /common/1.0.0 has one example and /basic/current.yaml (at 1.2.0) has 2 examples, so
+        // /basic/1.2.0 should end up with 2 examples:
+        //  common.examples X basic.examples => [
+        //      common.example[0] + basic.example[0],
+        //      common.example[0] + basic.example[1]
+        // ]
+        {
+            $schema: '/basic/1.2.0',
+            dt: '2020-06-25T00:00:00Z',
+            test: 'test_string_value_2',
+        }
+    ]
 };
 
 const expectedBasicDereferencedSchemaWithoutNumericBounds = _.cloneDeep(

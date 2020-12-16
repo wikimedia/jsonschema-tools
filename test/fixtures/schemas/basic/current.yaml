@@ -33,3 +33,5 @@ allOf:
         test_number: 1.0
         test_map:
           keyA: valueA
+      - $schema: { $ref: '#/$id' }
+        test: test_string_value_2
