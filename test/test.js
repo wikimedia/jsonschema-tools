@@ -51,6 +51,11 @@ const expectedBasicSchema = {
                     additionalProperties: {
                         type: 'string'
                     }
+                },
+                test_uri: {
+                    type: 'string',
+                    format: 'uri-reference',
+                    maxLength: 1024
                 }
             },
             required: ['test'],
@@ -107,6 +112,11 @@ const expectedBasicDereferencedSchema = {
             additionalProperties: {
                 type: 'string'
             }
+        },
+        test_uri: {
+            type: 'string',
+            format: 'uri-reference',
+            maxLength: 1024
         }
     },
     required: ['$schema', 'test'],
@@ -343,6 +353,41 @@ describe('materializeSchemaToPath', function() {
                 const materializedSchema = yaml.safeLoad(await fse.readFile(materializedFile, 'utf-8'));
                 assert.deepStrictEqual(materializedSchema, test.expected.schema);
             });
+        });
+    });
+
+    // This test cannot be part of the automated declared tests above, because
+    // the generated examples are not pre-determined, so the deepStrictEqual
+    // comparison will fail.
+    it('should dereference and materialize new yaml version and generate examples', async () => {
+        const options = readConfig({
+            contentTypes: ['yaml'],
+            shouldGitAdd: false,
+            shouldDereference: true,
+            shouldGenerateExample: true,
+            schemaBaseUris: [fixture.resolve('schemas/')],
+        }, true);
+
+        const schemaFile = fixture.resolve('schemas/basic/current.yaml');
+        const schemaDirectory = path.dirname(schemaFile);
+        const schema = expectedBasicDereferencedSchema;
+
+        // remove the schema examples so one will be generated for us.
+        delete schema.examples;
+
+        const materializedFiles = await materializeSchemaToPath(
+            schemaDirectory, schema, options
+        );
+        materializedFiles.forEach(async (materializedFile) => {
+            const materializedSchema = yaml.safeLoad(await fse.readFile(materializedFile, 'utf-8'));
+            assert.ok(
+                !_.isEmpty(materializedSchema.examples),
+                `should have generated example in ${materializedFile}`
+            );
+            assert.ok(_.isString(materializedSchema.examples[0].test));
+            assert.ok(_.isInteger(materializedSchema.examples[0].test_integer));
+            assert.ok(_.isNumber(materializedSchema.examples[0].test_number));
+            assert.strictEqual(materializedSchema.examples[0].test_uri, 'http://example.org');
         });
     });
 });

@@ -25,6 +25,12 @@ allOf:
         type: object
         additionalProperties:
           type: string
+      
+      test_uri:
+        type: string
+        format: uri-reference
+        maxLength: 1024
+
     required:
       - test
     examples:
