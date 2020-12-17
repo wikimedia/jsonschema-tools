@@ -23,3 +23,9 @@ properties:
     type: object
     additionalProperties:
       type: string
+examples:
+  - $schema: /basic/1.0.0
+    test: test_string_value
+    test_map:
+      keyA: valueA
+      

@@ -7,7 +7,6 @@ additionalProperties: false
 allOf:
   - $ref: /common/1.0.0
   - properties:
-
       test:
         type: string
         default: default test
@@ -28,3 +27,11 @@ allOf:
           type: string
     required:
       - test
+    examples:
+      - $schema: { $ref: '#/$id' }
+        test: test_string_value
+        test_number: 1.0
+        test_map:
+          keyA: valueA
+      - $schema: { $ref: '#/$id' }
+        test: test_string_value_2
