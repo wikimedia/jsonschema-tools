@@ -242,7 +242,11 @@ contentTypes: ['yaml', 'json']
 
 # Name of 'current' schema file. Only these files will be considered
 # when materializing modified or 'all' schema files.
-currentName: current.yaml
+# If the name does not include a file extension, it is assumed
+# to be the first content type listed in contentTypes.
+# E.g. current -> current.yaml, if the first entry in contentTypes
+# is 'yaml'.
+currentName: current
 
 # Field in schema from which to extract the version using semver.coerce.
 schemaVersionField: '$id'
