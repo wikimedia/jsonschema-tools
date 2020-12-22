@@ -295,10 +295,11 @@ configPaths: ['./.jsonschema-tools.yaml']
 # that they are at least within these bounds.
 enforcedNumericBounds: [Number.MIN_SAFE_INTEGER, Number.MAX_SAFE_INTEGER],
 
-# If true, repository tests for schemas will fail if the schema doesn't have
-# examples.  If it does have examples, they will be also tested for
-# validation against the schema.
-requireExamples: false
+# If true an example will be generated during schema materialization.
+# Examples already present in the schema will be preserved. E.g. If the
+# schema already has examples, and shouldGenerateExample is true,
+# no new example will be generated.
+shouldGenerateExample: false
 ```
 
 # Schema Repository Tests
