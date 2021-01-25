@@ -407,7 +407,7 @@ describe('findSchemasByTitleAndMajor', function() {
         // Force re-reading of (default) config options.
         const options = readConfig({ schemaBasePath: fixture.resolve('schemas/') }, true);
         const schemasByTitleAndMajor = findSchemasByTitleAndMajor(options);
-        assert.deepStrictEqual(_.keys(schemasByTitleAndMajor), ['basic', 'common']);
+        assert.deepStrictEqual(_.keys(schemasByTitleAndMajor), ['common', 'basic']);
         assert.deepStrictEqual(_.keys(schemasByTitleAndMajor.basic), ['1']);
         assert.deepStrictEqual(_.keys(schemasByTitleAndMajor.common), ['1']);
 
