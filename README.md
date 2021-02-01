@@ -33,7 +33,7 @@ but with the benifits of decentralization provided by git.
 
 # Usage
 ```
-$ npm install -g jsonschema-tools
+$ npm i -g @wikimedia/jsonschema-tools
 $ jsonschema-tools --help
 
 jsonschema-tools [command]
