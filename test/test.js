@@ -15,6 +15,7 @@ const {
     getSchemaById,
     materializeAllSchemas,
     schemaVersion,
+    serialize,
     tests
 } = require('../index.js');
 
@@ -505,6 +506,42 @@ describe('Reasonable schema version number parsing', function() {
             $id: '/w3c/reportingapi/report/1.2.3',
         };
         assert(schemaVersion(barebonesSchema, '$id') === '1.2.3');
+    });
+});
+
+describe('YAML serialization key order', function() {
+    it('is deterministic', async () => {
+        let tests = [
+            {
+                keys: [ 'allOf', 'properties' ],
+                expected: [ 'properties', 'allOf' ],
+            },
+            {
+                keys: [ 'foo', 'properties' ],
+                expected: [ 'properties', 'foo' ],
+            },
+            {
+                keys: [ 'properties', 'foo' ],
+                expected: [ 'properties', 'foo' ],
+            },
+            {
+                keys: [ 'zebra', 'ant' ],
+                expected: [ 'ant', 'zebra' ],
+            },
+        ];
+
+        await Promise.all(tests.map(async (test) => {
+            assert.deepStrictEqual(
+                _.flow(
+                    () => test.keys,
+                    _.invert,
+                    serialize,
+                    yaml.load,
+                    Object.keys
+                )(),
+                test.expected
+            );
+        }));
     });
 });
 
