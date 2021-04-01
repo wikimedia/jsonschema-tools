@@ -39,6 +39,7 @@
     "json-schema-ref-parser": "^7.1.1",
     "json-schema-traverse": "^0.4.1",
     "lodash": "^4.17.15",
+    "netmask": "^2.0.1",
     "pino": "^5.13.2",
     "pino-pretty": "^3.2.1",
     "recursive-readdir-sync": "^1.0.6",
