@@ -617,7 +617,8 @@ describe('Test Schema Repository Tests', function() {
             // The legacy schema has a camelCase key name.
             // Test that we can skip the snake-case-properties test case.
             skipSchemaTestCases: {
-                '/legacy/.*': ['schema-snake-case-properties']
+                '/legacy/.*': ['schema-snake-case-properties'],
+                '/legacy/1.1.0': ['schema-version-compatibility'],
             },
         }, true);
 

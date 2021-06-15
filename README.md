@@ -280,7 +280,7 @@ shouldGitAdd: true
 ignoreSchemas: []
 
 # An object mapping schema $id regexes to a list of test case names to skip.
-# (Currently this only works with schema robustness test cases.)
+# (Currently this only works with schema robustness and compatibility test cases.)
 skipSchemaTestCases: {},
 
 # special case option to ease setting log level to
