@@ -6,6 +6,7 @@ const fse = require('fs-extra');
 const path = require('path');
 const yaml = require('js-yaml');
 const assert = require('assert');
+const rewire = require('rewire');
 
 const {
     materializeSchemaToPath,
@@ -56,7 +57,7 @@ const expectedBasicSchema = {
                     type: 'string',
                     format: 'uri-reference',
                     maxLength: 1024
-                }
+                },
             },
             required: ['test'],
             examples: [
@@ -64,7 +65,7 @@ const expectedBasicSchema = {
                     $schema: { $ref: '#/$id' },
                     test: 'test_string_value',
                     test_number: 1.0,
-                    test_map: { keyA: 'valueA' }
+                    test_map: { keyA: 'valueA' },
                 },
                 {
                     $schema: { $ref: '#/$id' },
@@ -117,7 +118,7 @@ const expectedBasicDereferencedSchema = {
             type: 'string',
             format: 'uri-reference',
             maxLength: 1024
-        }
+        },
     },
     required: ['$schema', 'test'],
     examples: [
@@ -130,7 +131,7 @@ const expectedBasicDereferencedSchema = {
             dt: '2020-06-25T00:00:00Z',
             test: 'test_string_value',
             test_number: 1.0,
-            test_map: { keyA: 'valueA' }
+            test_map: { keyA: 'valueA' },
         },
         // Examples are merged using a cartesian product of all refed examples too!
         // /common/1.0.0 has one example and /basic/current.yaml (at 1.2.0) has 2 examples, so
@@ -572,5 +573,33 @@ describe('Test Schema Repository Tests', function() {
         // Materialize all so declareTests will pass.
         await materializeAllSchemas(options);
         tests.all(options);
+    });
+
+    // This needs to be its own test case so that we don't make the whole
+    // schema fixtures fail the above repository tests.
+    it('Should fail compatibility test if a requiredness is modified', async function() {
+        const compatibilityTests = rewire('../lib/tests/compatibility');
+        const assertCompatible = compatibilityTests.__get__('assertCompatible');
+
+        const options = readConfig({
+            schemaBasePath: fixture.resolve('schemas/'),
+            contentTypes: ['yaml'],
+        }, true);
+
+        const oldSchema = await getSchemaById('/basic/1.0.0', options);
+        const newSchema = await getSchemaById('/basic/1.1.0', options);
+
+        // Modify newSchema.required.
+        newSchema.required.push('test_number');
+        assert.throws(
+            () => assertCompatible(newSchema, oldSchema),
+            assert.AssertionError
+        );
+
+        newSchema.required = undefined;
+        assert.throws(
+            () => assertCompatible(newSchema, oldSchema),
+            assert.AssertionError
+        );
     });
 });

@@ -43,6 +43,7 @@
     "pino": "^5.13.2",
     "pino-pretty": "^3.2.1",
     "recursive-readdir-sync": "^1.0.6",
+    "rewire": "^5.0.0",
     "semver": "^6.3.0",
     "yargs": "^14.0.0"
   },

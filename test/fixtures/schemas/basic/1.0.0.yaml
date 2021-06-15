@@ -23,6 +23,10 @@ properties:
     type: object
     additionalProperties:
       type: string
+required:
+  - $schema
+  - test
+
 examples:
   - $schema: /basic/1.0.0
     test: test_string_value
