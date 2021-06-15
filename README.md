@@ -279,6 +279,10 @@ shouldGitAdd: true
 # it will not be included in results.
 ignoreSchemas: []
 
+# An object mapping schema $id regexes to a list of test case names to skip.
+# (Currently this only works with schema robustness test cases.)
+skipSchemaTestCases: {},
+
 # special case option to ease setting log level to
 # debug from CLI (where pino is not easily configurable).
 # Pino's log.level will be set to this by the readConfig function.
@@ -320,6 +324,17 @@ To run all tests in your schema repository, create a file in e.g.
 require('@wikimedia/jsonschema-tools').tests.all({ logLevel: 'warn' });
 ```
 
+Test cases can be seletively skipped for schemas using the `skipSchemaTestCases`
+config option.  This is an object mapping schema $id regexes to a list of
+test case names to skip.  E.g.
+
+```yaml
+skipSchemaTestCases:
+   # skip checking for snake_case properties in all schemas
+   # where $id matches /legacy/*
+  '/legacy/*': ['schema-snake-case-properties']
+```
+
 The tests are as follows:
 
 ## structure
@@ -343,4 +358,6 @@ SQL based systems.
 ## compatibility
 - All materialized schemas with the same major version must be backwards compatible
   (they can only add new non-required fields).
+
+
 
