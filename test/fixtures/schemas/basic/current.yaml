@@ -25,7 +25,16 @@ allOf:
         type: object
         additionalProperties:
           type: string
-      
+
+      test_enum:
+        description:
+          Only new entries to an enum should be allowed, and they can be provided in any order.
+        type: string
+        enum:
+          - val3
+          - val1
+          - val2
+
       test_uri:
         type: string
         format: uri-reference

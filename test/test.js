@@ -53,6 +53,11 @@ const expectedBasicSchema = {
                         type: 'string'
                     }
                 },
+                test_enum: {
+                    description: 'Only new entries to an enum should be allowed, and they can be provided in any order.',
+                    type: 'string',
+                    enum: ['val3', 'val1', 'val2'],
+                },
                 test_uri: {
                     type: 'string',
                     format: 'uri-reference',
@@ -113,6 +118,11 @@ const expectedBasicDereferencedSchema = {
             additionalProperties: {
                 type: 'string'
             }
+        },
+        test_enum: {
+            description: 'Only new entries to an enum should be allowed, and they can be provided in any order.',
+            type: 'string',
+            enum: ['val3', 'val1', 'val2'],
         },
         test_uri: {
             type: 'string',
@@ -596,7 +606,35 @@ describe('Test Schema Repository Tests', function() {
             assert.AssertionError
         );
 
-        newSchema.required = undefined;
+        delete newSchema.required;
+        assert.throws(
+            () => assertCompatible(newSchema, oldSchema),
+            assert.AssertionError
+        );
+    });
+
+    it('Should fail compatibility test if a enum is not a superset', async function() {
+        const compatibilityTests = rewire('../lib/tests/compatibility');
+        const assertCompatible = compatibilityTests.__get__('assertCompatible');
+
+        const options = readConfig({
+            schemaBasePath: fixture.resolve('schemas/'),
+            contentTypes: ['yaml'],
+        }, true);
+
+        const oldSchema = await getSchemaById('/basic/1.0.0', options);
+        const newSchema = await getSchemaById('/basic/1.1.0', options);
+
+        // Modify oldSchema test_enum field so that newSchema's test_enum is not a superset.
+        oldSchema.properties.test_enum.enum.push('val0');
+
+        assert.throws(
+            () => assertCompatible(newSchema, oldSchema),
+            assert.AssertionError
+        );
+
+        // // Test that removing an enum fails.
+        delete newSchema.properties.test_enum.enum;
         assert.throws(
             () => assertCompatible(newSchema, oldSchema),
             assert.AssertionError
