@@ -1,0 +1,26 @@
+title: legacy
+description: Simple schema used to test skipping certain repository schema tests.
+$id: /legacy/1.1.0
+$schema: https://json-schema.org/draft-07/schema#
+type: object
+properties:
+  $schema:
+    type: string
+    description: >
+      The URI identifying the jsonschema for this event. This may be just
+      a short uri containing only the name and revision at the end of the
+      URI path.  e.g. /schema_name/12345 is acceptable. This often will
+      (and should) match the schema's $id field.
+
+  testNonSnakeCase:
+    type: string
+    default: default test
+
+required:
+  - $schema
+  - testNonSnakeCase
+
+examples:
+  - $schema: { $ref: '#/$id' }
+    testNonSnakeCase: test_string_value
+      

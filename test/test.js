@@ -419,7 +419,7 @@ describe('findSchemasByTitleAndMajor', function() {
         // Force re-reading of (default) config options.
         const options = readConfig({ schemaBasePath: fixture.resolve('schemas/') }, true);
         const schemasByTitleAndMajor = findSchemasByTitleAndMajor(options);
-        assert.deepStrictEqual(_.keys(schemasByTitleAndMajor), ['common', 'basic']);
+        assert.deepStrictEqual(_.keys(schemasByTitleAndMajor), ['common', 'basic', 'legacy']);
         assert.deepStrictEqual(_.keys(schemasByTitleAndMajor.basic), ['1']);
         assert.deepStrictEqual(_.keys(schemasByTitleAndMajor.common), ['1']);
 
@@ -614,6 +614,12 @@ describe('Test Schema Repository Tests', function() {
         const options = readConfig({
             schemaBasePath: fixture.resolve('schemas/'),
             contentTypes: ['yaml'],
+            // The legacy schema has a camelCase key name.
+            // Test that we can skip the snake-case-properties test case.
+            skipSchemaTestCases: {
+                '/legacy/.*': ['schema-snake-case-properties'],
+                '/legacy/1.1.0': ['schema-version-compatibility'],
+            },
         }, true);
 
         // basic/current is at 1.2.0, which is not yet materialized in fixture.
@@ -677,4 +683,5 @@ describe('Test Schema Repository Tests', function() {
             assert.AssertionError
         );
     });
+
 });
