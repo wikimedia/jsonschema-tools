@@ -31,55 +31,55 @@ const expectedBasicSchema = {
     additionalProperties: false,
     allOf: [
         { $ref: '/common/1.0.0' },
+    ],
+    properties: {
+        test: {
+            type: 'string',
+            default: 'default test'
+        },
+        test_number: {
+            type: 'number',
+            maximum: 9007199254740991,
+            minimum: -9007199254740991
+        },
+        test_integer: {
+            type: 'integer',
+            maximum: 9007199254740991,
+            minimum: 0
+        },
+        test_map: {
+            description: 'We want to support \'map\' types using additionalProperties to specify the value types.  (Keys are always strings.)\n',
+            type: 'object',
+            additionalProperties: {
+                type: 'string'
+            }
+        },
+        test_enum: {
+            description: 'Only new entries to an enum should be allowed, and they can be provided in any order.',
+            type: 'string',
+            enum: ['val3', 'val1', 'val2'],
+        },
+        test_uri: {
+            type: 'string',
+            format: 'uri-reference',
+            maxLength: 1024
+        },
+    },
+    required: ['test'],
+    examples: [
         {
-            properties: {
-                test: {
-                    type: 'string',
-                    default: 'default test'
-                },
-                test_number: {
-                    type: 'number',
-                    maximum: 9007199254740991,
-                    minimum: -9007199254740991
-                },
-                test_integer: {
-                    type: 'integer',
-                    maximum: 9007199254740991,
-                    minimum: 0
-                },
-                test_map: {
-                    description: 'We want to support \'map\' types using additionalProperties to specify the value types.  (Keys are always strings.)\n',
-                    type: 'object',
-                    additionalProperties: {
-                        type: 'string'
-                    }
-                },
-                test_enum: {
-                    description: 'Only new entries to an enum should be allowed, and they can be provided in any order.',
-                    type: 'string',
-                    enum: ['val3', 'val1', 'val2'],
-                },
-                test_uri: {
-                    type: 'string',
-                    format: 'uri-reference',
-                    maxLength: 1024
-                },
-            },
-            required: ['test'],
-            examples: [
-                {
-                    $schema: { $ref: '#/$id' },
-                    test: 'test_string_value',
-                    test_number: 1.0,
-                    test_map: { keyA: 'valueA' },
-                },
-                {
-                    $schema: { $ref: '#/$id' },
-                    test: 'test_string_value_2',
-                },
-            ]
-        }
-    ]
+            $schema: { $ref: '#/$id' },
+            dt: '2020-06-25T00:00:00Z',
+            test: 'test_string_value',
+            test_number: 1.0,
+            test_map: { keyA: 'valueA' },
+        },
+        {
+            $schema: { $ref: '#/$id' },
+            dt: '2020-06-25T00:00:00Z',
+            test: 'test_string_value_2',
+        },
+    ],
 };
 
 const expectedBasicDereferencedSchema = {
@@ -135,27 +135,19 @@ const expectedBasicDereferencedSchema = {
     examples: [
         {
             // Even though both common and basic define $schema in their first example,
-            // Since the basic schema comes last in the list of allOf to merge,
-            // it's $schema value should take precedence when using jsonschema-tools'
-            // custom examples merge.
+            // The root (basic) schemas examples should take precedence when using
+            // jsonschema-tools custom examples merge.
             $schema: '/basic/1.2.0',
             dt: '2020-06-25T00:00:00Z',
             test: 'test_string_value',
             test_number: 1.0,
             test_map: { keyA: 'valueA' },
         },
-        // Examples are merged using a cartesian product of all refed examples too!
-        // /common/1.0.0 has one example and /basic/current.yaml (at 1.2.0) has 2 examples, so
-        // /basic/1.2.0 should end up with 2 examples:
-        //  common.examples X basic.examples => [
-        //      common.example[0] + basic.example[0],
-        //      common.example[0] + basic.example[1]
-        // ]
         {
             $schema: '/basic/1.2.0',
             dt: '2020-06-25T00:00:00Z',
             test: 'test_string_value_2',
-        }
+        },
     ]
 };
 
@@ -446,7 +438,6 @@ describe('findSchemasByTitleAndMajor', function() {
     });
 });
 
-
 describe('readConfig', function() {
     let fixture;
 
@@ -474,7 +465,6 @@ describe('readConfig', function() {
         assert.strictEqual(options.schemaTitleField, 'title'); // defaultOptions
     });
 });
-
 
 describe('getSchemaById', function() {
     let fixture;

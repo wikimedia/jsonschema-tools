@@ -6,47 +6,49 @@ type: object
 additionalProperties: false
 allOf:
   - $ref: /common/1.0.0
-  - properties:
-      test:
-        type: string
-        default: default test
+properties:
+  test:
+    type: string
+    default: default test
 
-      test_number:
-        type: number
+  test_number:
+    type: number
 
-      test_integer:
-        type: integer
-        minimum: 0
+  test_integer:
+    type: integer
+    minimum: 0
 
-      test_map:
-        description: >
-          We want to support 'map' types using additionalProperties to specify
-          the value types.  (Keys are always strings.)
-        type: object
-        additionalProperties:
-          type: string
+  test_map:
+    description: >
+      We want to support 'map' types using additionalProperties to specify
+      the value types.  (Keys are always strings.)
+    type: object
+    additionalProperties:
+      type: string
 
-      test_enum:
-        description:
-          Only new entries to an enum should be allowed, and they can be provided in any order.
-        type: string
-        enum:
-          - val3
-          - val1
-          - val2
+  test_enum:
+    description:
+      Only new entries to an enum should be allowed, and they can be provided in any order.
+    type: string
+    enum:
+      - val3
+      - val1
+      - val2
 
-      test_uri:
-        type: string
-        format: uri-reference
-        maxLength: 1024
+  test_uri:
+    type: string
+    format: uri-reference
+    maxLength: 1024
 
-    required:
-      - test
-    examples:
-      - $schema: { $ref: '#/$id' }
-        test: test_string_value
-        test_number: 1.0
-        test_map:
-          keyA: valueA
-      - $schema: { $ref: '#/$id' }
-        test: test_string_value_2
+required:
+  - test
+examples:
+  - $schema: { $ref: '#/$id' }
+    dt: '2020-06-25T00:00:00Z'
+    test: test_string_value
+    test_number: 1.0
+    test_map:
+      keyA: valueA
+  - $schema: { $ref: '#/$id' }
+    dt: '2020-06-25T00:00:00Z'
+    test: test_string_value_2
