@@ -137,14 +137,14 @@ additionalProperties: false
 allOf:
     ### common fields
   - $ref: /common/1.0.0
-    ### thing/change fields
-  - properties:
-      thing_id:
-        type: integer
-      thing_name:
-        type: string
-    required:
-      - thing_id
+### thing/change fields
+properties:
+  thing_id:
+    type: integer
+  thing_name:
+    type: string
+required:
+  - thing_id
 ```
 
 NOTE: The "path-only"-based `$ref` starts with a `/`. This causes the schema
@@ -196,6 +196,9 @@ required:
   - dt
   - thing_id
 ```
+
+NOTE: JSONSchema `examples` are treated specially when they are dereferenced and `allOf`-merged.  Only the root schema's `examples` field will be kept in the final
+schema.  Any `examples` present in any `$ref`ed schema will be removed.
 
 ## Git pre-commit hook
 
