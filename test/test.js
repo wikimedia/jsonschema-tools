@@ -392,6 +392,8 @@ describe('materializeSchemaToPath', function() {
             assert.ok(_.isInteger(materializedSchema.examples[0].test_integer));
             assert.ok(_.isNumber(materializedSchema.examples[0].test_number));
             assert.strictEqual(materializedSchema.examples[0].test_uri, 'http://example.org');
+            assert.strictEqual(materializedSchema.examples[0].$schema, '/basic/1.2.0');
+
         });
     });
 });
