@@ -16,7 +16,7 @@ const {
     getSchemaById,
     materializeAllSchemas,
     schemaVersion,
-    serialize,
+    serializers,
     tests
 } = require('../index.js');
 
@@ -512,9 +512,9 @@ describe('Reasonable schema version number parsing', function() {
     });
 });
 
-describe('YAML serialization key order', function() {
+describe('serialization key order', function() {
     it('is deterministic', async () => {
-        let tests = [
+        const tests = [
             {
                 keys: [ 'allOf', 'properties' ],
                 expected: [ 'properties', 'allOf' ],
@@ -534,16 +534,23 @@ describe('YAML serialization key order', function() {
         ];
 
         await Promise.all(tests.map(async (test) => {
-            assert.deepStrictEqual(
-                _.flow(
-                    () => test.keys,
-                    _.invert,
-                    serialize,
-                    yaml.load,
-                    Object.keys
-                )(),
-                test.expected
-            );
+
+            _.keys(serializers).forEach((serializerName) => {
+                const serialize = serializers[serializerName];
+
+                assert.deepStrictEqual(
+                    _.flow(
+                        () => test.keys,
+                        _.invert,
+                        serialize,
+                        yaml.load,
+                        Object.keys
+                    )(),
+                    test.expected,
+                    `${serializerName} serializer should serialize in deterministic key order`
+                );
+
+            });
         }));
     });
 });

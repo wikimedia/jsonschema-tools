@@ -1,6 +1,6 @@
 {
   "name": "@wikimedia/jsonschema-tools",
-  "version": "0.10.4",
+  "version": "0.11.0",
   "description": "Utilties to help manage a repository of versioned JSONSchemas.",
   "homepage": "https://github.com/wikimedia/jsonschema-tools",
   "repository": {
@@ -39,6 +39,7 @@
     "json-schema-merge-allof": "^0.6.0",
     "json-schema-ref-parser": "^7.1.1",
     "json-schema-traverse": "^0.4.1",
+    "json-stable-stringify": "^1.0.1",
     "lodash": "^4.17.15",
     "netmask": "^2.0.1",
     "pino": "^5.13.2",
