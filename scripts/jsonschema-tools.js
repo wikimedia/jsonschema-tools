@@ -7,6 +7,7 @@ const yargs = require('yargs');
 
 const {
     dereferenceSchema,
+    materializeSchema,
     materializeSchemaToPath,
     materializeModifiedSchemas,
     materializeAllSchemas,
@@ -90,7 +91,8 @@ const commonOptions = {
 const dereferenceOptions = {
     v: commonOptions.v,
     u: commonOptions.u,
-    // For dereference, only a single output content-type is taken, as this command
+    // For dereference and materialize (with --stdout),
+    // only a single output content-type is taken, as this command
     // output the dereferenced schema to stdout.
     c: {
         alias: 'content-type',
@@ -100,6 +102,17 @@ const dereferenceOptions = {
         choices: ['yaml', 'json'],
     },
     C: commonOptions.C,
+};
+
+
+const materializeOptions = {
+    O: {
+        alias: 'stdout',
+        desc: 'Instead of materializing to versioned files, just print the dereferenced and ' +
+            'rendered schema on stdout (in the default content type).',
+        type: 'boolean',
+        default: false,
+    }
 };
 
 const gitOptions = {
@@ -128,7 +141,6 @@ const schemaBasePathArg = {
     type: 'string',
     normalize: true,
 };
-
 
 
 /**
@@ -221,9 +233,15 @@ async function materialize(args) {
         try {
             options.log.info(`Reading schema from ${schemaPath}`);
             let schema = await readObject(schemaPath);
-            await materializeSchemaToPath(schemaDirectory, schema, options);
+
+            if (args.stdout) {
+                const materializedSchema = await materializeSchema(schema, options);
+                process.stdout.write(serialize(materializedSchema, options.contentType));
+            } else {
+                await materializeSchemaToPath(schemaDirectory, schema, options);
+            }
         } catch (err) {
-            options.log.fatal(err, `Failed materializing schema from ${schemaPath} into ${schemaDirectory}.`);
+            options.log.fatal(err, `Failed materializing schema from ${schemaPath}.`);
             process.exit(1);
         }
     });
@@ -269,6 +287,7 @@ const argParser = yargs
         'materialize [schema-path...]', 'Materializes JSONSchemas into versioned files.',
         y => y
             .options(commonOptions)
+            .options(materializeOptions)
             .positional('schema-path', schemaPathArg),
         materialize
     )
