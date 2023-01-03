@@ -6,7 +6,7 @@ const path  = require('path');
 const yargs = require('yargs');
 
 const {
-    materializeSchema,
+    dereferenceSchema,
     materializeSchemaToPath,
     materializeModifiedSchemas,
     materializeAllSchemas,
@@ -181,7 +181,7 @@ async function dereference(args) {
 
     const schemas = await Promise.all(schemaPaths.map(async (schemaPath) => {
         try {
-            return await materializeSchema(await readObject(schemaPath), options);
+            return await dereferenceSchema(await readObject(schemaPath), options);
         } catch (err) {
             options.log.fatal(err, `Failed dereferencing schema at ${schemaPath}`);
             process.exit(1);
