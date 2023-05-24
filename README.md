@@ -361,7 +361,7 @@ SQL-based systems.
 
 - All schemas are valid (draft-7) JSON Schemas and are secure (according to AJV, e.g. no unlimited regexes)
 - All fields are in snake_case format
-- All fields have monomorphic types
+- All fields have deterministic types: no union types, all arrays specify items type.
 - All required properties are defined
 - JSON Schema examples validate against their schema
 - JSON Schema examples `$schema` field matches their schema `$id`

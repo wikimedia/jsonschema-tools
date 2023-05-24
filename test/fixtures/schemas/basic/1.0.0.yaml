@@ -41,4 +41,4 @@ examples:
     test: test_string_value
     test_map:
       keyA: valueA
-      
+
