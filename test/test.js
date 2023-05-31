@@ -47,6 +47,12 @@ const expectedBasicSchema = {
             maximum: 9007199254740991,
             minimum: 0
         },
+        test_array: {
+            type: 'array',
+            items: {
+                type: 'string',
+            },
+        },
         test_map: {
             description: 'We want to support \'map\' types using additionalProperties to specify the value types.  (Keys are always strings.)\n',
             type: 'object',
@@ -112,6 +118,12 @@ const expectedBasicDereferencedSchema = {
             type: 'integer',
             maximum: 9007199254740991,
             minimum: 0
+        },
+        test_array: {
+            type: 'array',
+            items: {
+                type: 'string',
+            },
         },
         test_map: {
             description: 'We want to support \'map\' types using additionalProperties to specify the value types.  (Keys are always strings.)\n',
@@ -627,7 +639,7 @@ describe('Test Schema Repository Tests', function() {
         tests.all(options);
     });
 
-    // This needs to be its own test case so that we don't make the whole
+    // These needs to be its own test case so that we don't make the whole
     // schema fixtures fail the above repository tests.
     it('Should fail compatibility test if a requiredness is modified', async function() {
         const compatibilityTests = rewire('../lib/tests/compatibility');
@@ -679,6 +691,31 @@ describe('Test Schema Repository Tests', function() {
         delete newSchema.properties.test_enum.enum;
         assert.throws(
             () => assertCompatible(newSchema, oldSchema),
+            assert.AssertionError
+        );
+    });
+
+    it('Should fail robustness test if a array items type is not set', async function() {
+        const robustnessTests = rewire('../lib/tests/robustness');
+        const assertDeterministicTypes = robustnessTests.__get__('assertDeterministicTypes');
+
+        const options = readConfig({
+            schemaBasePath: fixture.resolve('schemas/'),
+            contentTypes: ['yaml'],
+        }, true);
+
+        const schema = await getSchemaById('/basic/1.1.0', options);
+        // Delete items.type and ensure throws.
+        delete schema.properties.test_array.items.type;
+        assert.throws(
+            () => assertDeterministicTypes(schema),
+            assert.AssertionError
+        );
+
+        // Delete items and ensure throws.
+        delete schema.properties.test_array.items;
+        assert.throws(
+            () => assertDeterministicTypes(schema),
             assert.AssertionError
         );
     });

@@ -19,6 +19,11 @@ properties:
     maximum: 9007199254740991
     minimum: -9007199254740991
 
+  test_array:
+    type: array
+    items:
+      type: string
+
   test_map:
     description: >
       We want to support 'map' types using additionalProperties to specify the
@@ -26,7 +31,7 @@ properties:
     type: object
     additionalProperties:
       type: string
-  
+
   test_enum:
     description:
       Only new entries to an enum should be allowed, and they can be provided in any order.
