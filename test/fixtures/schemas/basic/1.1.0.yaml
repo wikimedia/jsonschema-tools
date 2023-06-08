@@ -41,6 +41,24 @@ properties:
       - val1
       - val2
 
+  test_oneof:
+    type: object
+    oneOf:
+      - type: object
+        required:
+          - test
+        properties:
+          test:
+            type: string
+      - type: object
+        required:
+          - test
+        properties:
+          test:
+            type: string
+          test2:
+            type: string
+
 required:
   - $schema
   - test
