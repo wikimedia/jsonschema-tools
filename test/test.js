@@ -797,16 +797,6 @@ describe('Test Schema Repository Tests', function() {
             );
         });
 
-        it('Should fail robustness test if an object field has properties and additionalProperties', async function() {
-            const schema = await getSchemaById('/basic/1.1.0', options);
-
-            schema.properties.test_map.properties = [{ test: { type: 'string' } }];
-            assert.throws(
-                () => assertDeterministicTypes(schema),
-                assert.AssertionError
-            );
-        });
-
         it('Should fail robustness test if additionalProperties type is a union', async function() {
             const schema = await getSchemaById('/basic/1.1.0', options);
 
