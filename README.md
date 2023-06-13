@@ -372,3 +372,18 @@ SQL-based systems.
 
 - All materialized schemas with the same major version must be backwards compatible
   (they can only add new non-required fields).
+
+
+# Releasing
+To release a new version of jsonschema-tools to the @wikimedia npm namespace,
+you must have an npm account and be a
+[member of the wikimedia organization](https://wikitech.wikimedia.org/wiki/Npm_registry)
+on npmjs.com.
+
+* Configure 2FA for your account.
+* [create an access token](https://docs.npmjs.com/creating-and-viewing-access-tokens#creating-granular-access-tokens-on-the-website).
+* Edit your local ~/.npmrc file and [configure the npm CLI to use your access token](https://docs.npmjs.com/cli/v9/configuring-npm/npmrc#auth-related-configuration).
+
+Once your all of the above is done, you should be able to run npm publish locally.
+
+Make a commit that bumps the package version in package.json, get it merged, and locally git pull and run `npm publish`.
