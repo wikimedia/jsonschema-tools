@@ -65,6 +65,32 @@ const expectedBasicSchema = {
             type: 'string',
             enum: ['val3', 'val1', 'val2'],
         },
+        test_oneof: {
+            type: 'object',
+            oneOf: [
+                {
+                    type: 'object',
+                    required: ['test'],
+                    properties: {
+                        test: {
+                            type: 'string'
+                        }
+                    }
+                },
+                {
+                    type: 'object',
+                    required: ['test'],
+                    properties: {
+                        test: {
+                            type: 'string'
+                        },
+                        test2: {
+                            type: 'string'
+                        }
+                    }
+                }
+            ]
+        },
         test_uri: {
             type: 'string',
             format: 'uri-reference',
@@ -136,6 +162,32 @@ const expectedBasicDereferencedSchema = {
             description: 'Only new entries to an enum should be allowed, and they can be provided in any order.',
             type: 'string',
             enum: ['val3', 'val1', 'val2'],
+        },
+        test_oneof: {
+            type: 'object',
+            oneOf: [
+                {
+                    type: 'object',
+                    required: ['test'],
+                    properties: {
+                        test: {
+                            type: 'string'
+                        }
+                    }
+                },
+                {
+                    type: 'object',
+                    required: ['test'],
+                    properties: {
+                        test: {
+                            type: 'string'
+                        },
+                        test2: {
+                            type: 'string'
+                        }
+                    }
+                }
+            ]
         },
         test_uri: {
             type: 'string',
@@ -720,4 +772,75 @@ describe('Test Schema Repository Tests', function() {
         );
     });
 
+    describe('object type robustness tests', function() {
+
+        let assertDeterministicTypes;
+        let options;
+
+        before('Setup schema', async function() {
+            const robustnessTests = rewire('../lib/tests/robustness');
+            assertDeterministicTypes = robustnessTests.__get__('assertDeterministicTypes');
+
+            options = readConfig({
+                schemaBasePath: fixture.resolve('schemas/'),
+                contentTypes: ['yaml'],
+            }, true);
+        });
+
+        it('Should fail robustness test if an object field does not have a schema', async function() {
+            const schema = await getSchemaById('/basic/1.1.0', options);
+
+            delete schema.properties.test_map.additionalProperties;
+            assert.throws(
+                () => assertDeterministicTypes(schema),
+                assert.AssertionError
+            );
+        });
+
+        it('Should fail robustness test if additionalProperties type is a union', async function() {
+            const schema = await getSchemaById('/basic/1.1.0', options);
+
+            schema.properties.test_map.additionalProperties.type = ['string', 'number'];
+            assert.throws(
+                () => assertDeterministicTypes(schema),
+                assert.AssertionError
+            );
+        });
+    });
+
+    describe('oneOf robustness tests', function() {
+
+        let assertDeterministicTypes;
+        let options;
+
+        before('Setup schema', async function() {
+            const robustnessTests = rewire('../lib/tests/robustness');
+            assertDeterministicTypes = robustnessTests.__get__('assertDeterministicTypes');
+
+            options = readConfig({
+                schemaBasePath: fixture.resolve('schemas/'),
+                contentTypes: ['yaml'],
+            }, true);
+        });
+
+        it('Should fail robustness test if oneOf is of different types', async function() {
+            const schema = await getSchemaById('/basic/1.1.0', options);
+
+            schema.properties.test_oneof.oneOf[0].type = 'string';
+            assert.throws(
+                () => assertDeterministicTypes(schema),
+                assert.AssertionError
+            );
+        });
+
+        it('Should fail robustness test if oneOf objects have different required fields', async function() {
+            const schema = await getSchemaById('/basic/1.1.0', options);
+
+            schema.properties.test_oneof.oneOf[0].required = ['test2'];
+            assert.throws(
+                () => assertDeterministicTypes(schema),
+                assert.AssertionError
+            );
+        });
+    });
 });
