@@ -747,6 +747,25 @@ describe('Test Schema Repository Tests', function() {
         );
     });
 
+    it('Should fail compatibility test if a field is removed', async function() {
+        const compatibilityTests = rewire('../lib/tests/compatibility');
+        const assertCompatible = compatibilityTests.__get__('assertCompatible');
+
+        const options = readConfig({
+            schemaBasePath: fixture.resolve('schemas/'),
+            contentTypes: ['yaml'],
+        }, true);
+
+        const oldSchema = await getSchemaById('/basic/1.0.0', options);
+        const newSchema = await getSchemaById('/basic/1.1.0', options);
+
+        delete newSchema.properties.test_map;
+        assert.throws(
+            () => assertCompatible(newSchema, oldSchema),
+            assert.AssertionError
+        );
+    });
+
     it('Should fail robustness test if a array items type is not set', async function() {
         const robustnessTests = rewire('../lib/tests/robustness');
         const assertDeterministicTypes = robustnessTests.__get__('assertDeterministicTypes');
