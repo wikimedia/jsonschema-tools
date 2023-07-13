@@ -11,6 +11,7 @@ const rewire = require('rewire');
 const {
     materializeSchemaToPath,
     materializeSchema,
+    findSchemasByTitle,
     findSchemasByTitleAndMajor,
     readConfig,
     getSchemaById,
@@ -477,7 +478,7 @@ describe('findSchemasByTitleAndMajor', function() {
         // Force re-reading of (default) config options.
         const options = readConfig({ schemaBasePath: fixture.resolve('schemas/') }, true);
         const schemasByTitleAndMajor = findSchemasByTitleAndMajor(options);
-        assert.deepStrictEqual(_.keys(schemasByTitleAndMajor), ['common', 'basic', 'legacy']);
+        assert.deepStrictEqual(_.keys(schemasByTitleAndMajor), ['common', 'basic', 'incorrect', 'legacy']);
         assert.deepStrictEqual(_.keys(schemasByTitleAndMajor.basic), ['1']);
         assert.deepStrictEqual(_.keys(schemasByTitleAndMajor.common), ['1']);
 
@@ -683,12 +684,30 @@ describe('Test Schema Repository Tests', function() {
                 '/legacy/.*': ['schema-snake-case-properties'],
                 '/legacy/1.1.0': ['schema-version-compatibility'],
             },
+            // Incorrect schema is used for later test
+            ignoreSchemas: ['different'],
         }, true);
 
         // basic/current is at 1.2.0, which is not yet materialized in fixture.
         // Materialize all so declareTests will pass.
         await materializeAllSchemas(options);
         tests.all(options);
+    });
+
+    it('Should fail structure test if schema $id does not match title or path', async function() {
+        const structureTests = rewire('../lib/tests/structure');
+        const assertIdMatchesDirectory = structureTests.__get__('assertIdMatchesDirectory');
+        const options = readConfig({
+            schemaBasePath: fixture.resolve('schemas/'),
+            contentTypes: ['yaml']
+        }, true);
+
+        const { incorrect: incorrectSchemas } = findSchemasByTitle(options);
+
+        assert.throws(
+            () => assertIdMatchesDirectory(incorrectSchemas[0], options),
+            assert.AssertionError
+        );
     });
 
     // These needs to be its own test case so that we don't make the whole
