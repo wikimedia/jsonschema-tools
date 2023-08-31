@@ -881,4 +881,23 @@ describe('Test Schema Repository Tests', function() {
             );
         });
     });
+
+    it('Should fail robustness test if enum has a null', async function() {
+        const robustnessTests = rewire('../lib/tests/robustness');
+        const assertDeterministicTypes = robustnessTests.__get__('assertDeterministicTypes');
+
+        const options = readConfig({
+            schemaBasePath: fixture.resolve('schemas/'),
+            contentTypes: ['yaml'],
+        }, true);
+
+        const schema = await getSchemaById('/basic/1.1.0', options);
+
+        schema.properties.test_enum.enum[0] = null;
+
+        assert.throws(
+            () => assertDeterministicTypes(schema),
+            assert.AssertionError
+        );
+    });
 });
