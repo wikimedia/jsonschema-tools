@@ -228,6 +228,80 @@ delete expectedBasicDereferencedSchemaWithoutNumericBounds.properties.test_integ
 
 /* eslint camelcase: 0 */
 
+
+
+describe('jsonschema-tools utility functions', function() {
+
+    const jsToolsRewired = rewire('../lib/jsonschema-tools.js');
+
+    it('fileExtension should return the file extension', function() {
+        const fileExtension = jsToolsRewired.__get__('fileExtension');
+        assert.strictEqual(fileExtension('a/b/c.yaml'), '.yaml');
+        assert.strictEqual(fileExtension('a/b/c.json'), '.json');
+        assert.strictEqual(fileExtension('a/b/1.0.0'), null)
+    });
+
+    it('extensionlessPath should remove extension from file path', function() {
+        const extensionlessPath = jsToolsRewired.__get__('extensionlessPath');
+        assert.strictEqual(extensionlessPath('/a/b/file.yaml'), '/a/b/file');
+        assert.strictEqual(extensionlessPath('a/b/file.yaml'), 'a/b/file');
+        assert.strictEqual(
+            extensionlessPath('a/b/file'),
+            'a/b/file',
+            'sholud not modify an extensionless path'
+        );
+        assert.strictEqual(
+            extensionlessPath('a/b/1.0.0'),
+            'a/b/1.0.0',
+            'should not modify extensionless versioned schema path'
+        );
+        assert.strictEqual(extensionlessPath('a/b/1.0.0.yaml'), 'a/b/1.0.0');
+    });
+
+    it('uriHasProtocol should determine if uri has protocol', function() {
+        const uriHasProtocol = jsToolsRewired.__get__('uriHasProtocol');
+        assert.strictEqual(uriHasProtocol('http://domain.example'), true);
+        assert.strictEqual(uriHasProtocol('file:///a/b'), true);
+        assert.strictEqual(uriHasProtocol('/a/b'), false);
+    });
+
+    it('resolveUri should resolve URIs with a base URI', function() {
+        const resolveUri = jsToolsRewired.__get__('resolveUri');
+        assert.strictEqual(
+            resolveUri('/a/b/c', 'http://domain.example/path/to/dir'),
+            'http://domain.example/path/to/dir/a/b/c'
+        );
+        assert.strictEqual(
+            resolveUri('/a/b/c', 'file:///path/to/dir'),
+            'file:///path/to/dir/a/b/c'
+        );
+        assert.strictEqual(
+            resolveUri('/a/b/c', '/path/to/dir'),
+            'file:///path/to/dir/a/b/c'
+        );
+    });
+
+    it('isVersionedSchemaFile should determine if a file path is a versioned schema file', function() {
+        const isVersionedSchemaFile = jsToolsRewired.__get__('isVersionedSchemaFile');
+        assert.strictEqual(isVersionedSchemaFile('/a/b/c/1.0.0'), true);
+        assert.strictEqual(isVersionedSchemaFile('/a/b/c/1.0.0.yaml'), true);
+        assert.strictEqual(isVersionedSchemaFile('a/b/c/1.0.0'), true);
+        assert.strictEqual(isVersionedSchemaFile('http://domain.example/a/b/c/1.0.0'), true);
+        assert.strictEqual(isVersionedSchemaFile('http://domain.example/a/b/c/current.yaml'), false);
+        assert.strictEqual(isVersionedSchemaFile('a/b/c/latest'), false);
+    });
+
+    it('isCurrentSchemaFile should determine if a file path is a current working schema file', function() {
+        const isCurrentSchemaFile = jsToolsRewired.__get__('isCurrentSchemaFile');
+        const options = { currentName: 'current' };
+        assert.strictEqual(isCurrentSchemaFile('/a/b/c/1.0.0', options), false);
+        assert.strictEqual(isCurrentSchemaFile('/a/b/c/1.0.0.yaml', options), false);
+        assert.strictEqual(isCurrentSchemaFile('/a/b/c/latest', options), false);
+        assert.strictEqual(isCurrentSchemaFile('/a/b/c/latest.yaml', options), false);
+        assert.strictEqual(isCurrentSchemaFile('/a/b/c/current.yaml', options), true);
+    });
+});
+
 describe('materializeSchemaToPath', function() {
     let tests = [
         {
@@ -462,7 +536,6 @@ describe('materializeSchemaToPath', function() {
         });
     });
 });
-
 
 describe('findSchemasByTitleAndMajor', function() {
     let fixture;

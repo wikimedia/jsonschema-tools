@@ -15,8 +15,8 @@ const {
     serialize,
     installGitHook,
     defaultOptions,
+    printDiffForGitModifiedVersionedSchemas,
 } = require('../index.js');
-
 
 /**
  * Allows for specifying comma separated array types with yargs.
@@ -130,6 +130,21 @@ const gitOptions = {
     }
 };
 
+const diffOptions = {
+    d: {
+        alias: 'diff-command',
+        desc: 'Command to run for diffing two schema files',
+        type: 'string',
+        default: defaultOptions.diffCommand,
+    },
+    T: {
+        alias: 'commit',
+        desc: 'Git commit to use in git diff commands used find versioned files to diff.',
+        type: 'string',
+        default: 'HEAD^',
+    },
+};
+
 const schemaPathArg = {
     desc: 'Path to the schema. If not given, the schema will be read from stdin.',
     type: 'string',
@@ -164,6 +179,10 @@ function argsToOptions(args) {
             options.shouldGitAdd = args[key];
         } else if (key === 'staged') {
             options.gitStaged = args[key];
+        } else if (key === 'commit') {
+            options.gitDiffCommit = args[key];
+        } else if (key === 'diff-command') {
+            options.diffCommand = args[key];
         } else if (_.has(defaultOptions, key)) {
             options[key] = args[key];
         }
@@ -261,6 +280,11 @@ async function materializeAll(args) {
     await materializeAllSchemas(args.schemaBasePath, options);
 }
 
+async function diffChangedSchemaVersions(args) {
+    const options = argsToOptions(args);
+    await printDiffForGitModifiedVersionedSchemas(options);
+}
+
 /**
  * Installs a git pre-commit hook in gitRoot that will
  * materialize any staged modified files currentName schema files.
@@ -310,9 +334,16 @@ const argParser = yargs
         'install-git-hook [schema-base-path]', 'Installs a git pre-commit hook that will materialize (git staged) modified current schema files before commit.',
         y => y.positional('schema-base-path', schemaBasePathArg),
         installGitPreCommitHook
-    )
-    .showHelpOnFail(false, 'Specify --help for available options')
-    .help();
+    ).command(
+        'diff [schema-base-path]', 'Looks for versioned JSONSchema files added in the git commit HEAD JSONSchema files and prints a diff of the prior version.',
+        y => y
+            .options(diffOptions)
+            .positional('schema-base-path', schemaBasePathArg),
+        diffChangedSchemaVersions
+    );
+
+yargs.showHelpOnFail(false, 'Specify --help for available options')
+.help();
 
 if (require.main === module) {
     argParser.argv;
