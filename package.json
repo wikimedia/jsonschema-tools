@@ -9,7 +9,7 @@
   },
   "main": "index.js",
   "scripts": {
-    "test": "nyc mocha && npm run lint",
+    "test": "nyc --reporter=lcov --reporter=text-summary --reporter=html mocha && npm run lint",
     "lint": "eslint --cache --max-warnings 0 index.js test/test.js"
   },
   "bin": {
