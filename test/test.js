@@ -238,7 +238,7 @@ describe('jsonschema-tools utility functions', function() {
         const fileExtension = jsToolsRewired.__get__('fileExtension');
         assert.strictEqual(fileExtension('a/b/c.yaml'), '.yaml');
         assert.strictEqual(fileExtension('a/b/c.json'), '.json');
-        assert.strictEqual(fileExtension('a/b/1.0.0'), null)
+        assert.strictEqual(fileExtension('a/b/1.0.0'), null);
     });
 
     it('extensionlessPath should remove extension from file path', function() {
