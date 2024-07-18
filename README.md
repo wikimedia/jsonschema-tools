@@ -1,3 +1,5 @@
+# This repository has been migrated to gitlab at https://gitlab.wikimedia.org/repos/data-engineering/jsonschema-tools
+
 # jsonschema-tools
 
 ![Node.js CI](https://github.com/wikimedia/jsonschema-tools/workflows/Node.js%20CI/badge.svg)
